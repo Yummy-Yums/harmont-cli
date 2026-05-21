@@ -1,0 +1,22 @@
+[package]
+name = "hm-plugin-protocol"
+version = "0.0.0-dev"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Wire-level data types shared between the hm binary and hm plugins."
+
+[dependencies]
+serde      = { workspace = true }
+serde_json = { workspace = true }
+schemars   = { workspace = true }
+semver     = { workspace = true }
+uuid       = { workspace = true }
+chrono     = { workspace = true }
+thiserror  = { workspace = true }
+
+[dev-dependencies]
+insta = { version = "1", features = ["json"] }
+
+[lints]
+workspace = true

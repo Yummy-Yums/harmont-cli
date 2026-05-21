@@ -1,0 +1,5 @@
+# Files marked export-ignore are stripped from the public mirror by
+# scripts/build-cli-mirror.sh. The script is the source of truth; these
+# markers exist so a human reading the file sees the intent.
+CLAUDE.md export-ignore
+**/CLAUDE.md export-ignore
