@@ -12,10 +12,6 @@ pub mod fixtures;
 #[must_use]
 pub fn hm_bin() -> assert_cmd::Command {
     let mut cmd = assert_cmd::Command::cargo_bin("hm").expect("binary 'hm' not found");
-    // Integration tests must never touch the developer's real OS keyring.
-    // Pinning to the file backend keeps credentials confined to the per-test
-    // HOME tempdir and matches the headless-Linux path we ship in CI.
-    cmd.env("HARMONT_CREDENTIAL_STORE", "file");
     cmd
 }
 
@@ -24,7 +20,8 @@ pub fn hm_bin() -> assert_cmd::Command {
 /// The harness sets:
 /// - `HARMONT_API_URL`  → the mock server's URI (random localhost port)
 /// - `HARMONT_API_TOKEN` → a fake bearer (`test-token`) so `require_auth`
-///   passes without touching the OS keyring; the mock accepts any value
+///   passes without reading from the file credential store; the mock
+///   accepts any value
 /// - `HARMONT_ORG` → the supplied slug, so subcommands that need an org
 ///   resolve it without reading a config file
 ///

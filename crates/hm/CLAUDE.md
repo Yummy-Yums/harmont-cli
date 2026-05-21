@@ -35,9 +35,11 @@ generated}.rs and the matching command modules are deleted.
 
 The plugin uses extism-pdk's host-mediated HTTP, restricted by the
 manifest's `allowed_hosts: ["api.harmont.dev", "*.harmont.dev"]`. The
-host fns `hm_keyring_*` back token storage; `hm_kv_*` (KvScope::Plugin)
-backs persistent state (active org slug); `hm_spawn_loopback` +
-`hm_loopback_recv` support the browser-loopback OAuth flow.
+host fns `hm_keyring_*` back token storage (file-backed at
+`~/.harmont/credentials.toml`, mode 0o600 — no OS keyring / D-Bus);
+`hm_kv_*` (KvScope::Plugin) backs persistent state (active org slug);
+`hm_spawn_loopback` + `hm_loopback_recv` support the browser-loopback
+OAuth flow.
 
 `hm cloud run` is partial: it submits a pre-rendered plan JSON
 (default path: `.harmont/plan.json`, override with `--plan-file`).

@@ -8,6 +8,7 @@ pub mod cli;
 pub mod commands;
 pub mod config;
 pub mod context;
+pub mod creds_store;
 pub mod dispatcher;
 pub mod error;
 pub mod fs_util;

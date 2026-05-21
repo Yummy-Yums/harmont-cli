@@ -64,6 +64,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install system build deps
+        # libdbus-1-dev is required by the `keyring` crate's
+        # sync-secret-service feature; the GH-hosted Ubuntu runner
+        # doesn't ship the headers by default.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libdbus-1-dev pkg-config
+
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
@@ -84,11 +92,11 @@ jobs:
       - name: Build hm
         run: cargo build --release -p harmont-cli
 
-      - name: Run example via hm run --local
+      - name: Run example via hm run
         working-directory: examples/${{ matrix.example }}
         env:
           # The CLI shells out to `python3 -m harmont` to render the
           # pipeline; the system Python on the runner is what setup-python
           # just installed.
           HM_NONINTERACTIVE: '1'
-        run: ../../target/release/hm run --local
+        run: ../../target/release/hm run ci

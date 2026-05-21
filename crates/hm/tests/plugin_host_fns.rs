@@ -36,15 +36,17 @@ struct Report {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn host_fn_probe_passes_all_checks() {
-    // KvScope::Plugin is now persisted to <config_dir>/harmont/state/
-    // <plugin>.kv. Point XDG_CONFIG_HOME at a tempdir so this test
-    // doesn't touch the developer's real config tree.
+    // KvScope::Plugin is persisted under <config_dir>/harmont/state/ and
+    // the credential store under <home>/.harmont/credentials.toml. Point
+    // both at a tempdir so this test doesn't touch the developer's real
+    // config tree.
     let temp = tempfile::tempdir().expect("tempdir");
-    // SAFETY: process-wide env var set during a test; the tempdir is
+    // SAFETY: process-wide env vars set during a test; the tempdir is
     // unique per run and the test doesn't unset it (other tests use
     // their own tempdirs).
     unsafe {
         std::env::set_var("XDG_CONFIG_HOME", temp.path());
+        std::env::set_var("HOME", temp.path());
     }
     let path = fixtures::fixture_path("host_fn_probe");
     let reg = PluginRegistry::load(RegistryConfig {
@@ -67,11 +69,6 @@ async fn host_fn_probe_passes_all_checks() {
     assert!(report.kv_round_trip);
     assert!(report.kv_isolated_per_scope);
     assert!(report.fs_read_returns_none_for_missing);
-    if std::env::var("HARMONT_PROBE_KEYRING").is_ok() {
-        assert!(
-            report.keyring_round_trip,
-            "set HARMONT_PROBE_KEYRING=1 only when a keyring backend is available"
-        );
-    }
+    assert!(report.keyring_round_trip);
     assert!(report.should_cancel_default_false);
 }

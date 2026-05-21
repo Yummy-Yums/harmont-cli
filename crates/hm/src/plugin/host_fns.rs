@@ -782,24 +782,15 @@ fn socket_close_impl(h: SocketHandle) {
 }
 
 fn keyring_get_impl(service: &str, account: &str) -> Option<String> {
-    use keyring::Entry;
-    Entry::new(service, account)
-        .ok()
-        .and_then(|e| e.get_password().ok())
+    crate::creds_store::get(service, account)
 }
 
 fn keyring_set_impl(service: &str, account: &str, secret: &str) {
-    use keyring::Entry;
-    if let Ok(e) = Entry::new(service, account) {
-        let _ = e.set_password(secret);
-    }
+    crate::creds_store::set(service, account, secret);
 }
 
 fn keyring_delete_impl(service: &str, account: &str) {
-    use keyring::Entry;
-    if let Ok(e) = Entry::new(service, account) {
-        let _ = e.delete_credential();
-    }
+    crate::creds_store::delete(service, account);
 }
 
 fn tty_prompt_impl(msg: &str, mask: bool) -> String {

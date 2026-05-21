@@ -1,7 +1,7 @@
 //! Small filesystem helpers for atomic, permission-restricted writes.
 //!
 //! The main entry point is [`write_atomic_restricted`]. It is used by
-//! `FileStore` (when the keyring backend is unavailable or disabled) and by
+//! [`crate::creds_store`] (file-backed credential store) and by
 //! `Config::save`, both of which write into `~/.harmont/`
 //! (see `config::user_config_dir`).
 

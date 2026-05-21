@@ -153,9 +153,10 @@ hm cloud run [--plan-file PATH] # submit a pre-rendered plan JSON
                                 # (defaults to .harmont/plan.json)
 ```
 
-Tokens are stored in the OS keyring. The active org slug is persisted
-per-user under `~/.config/harmont/state/cloud.kv`. Source-archive
-upload for `cloud run` is plan-5 work — pre-render your pipeline to
+Tokens are stored in `~/.harmont/credentials.toml` (mode 0o600). The
+active org slug is persisted per-user under
+`~/.config/harmont/state/cloud.kv`. Source-archive upload for
+`cloud run` is plan-5 work — pre-render your pipeline to
 `.harmont/plan.json` first.
 
 ## Build from source
