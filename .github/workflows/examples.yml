@@ -41,11 +41,11 @@ jobs:
   build-hm:
     needs: validate-matrix
     runs-on: ubuntu-latest
-    # Cold cache compiles wasmtime/cranelift + extism + bollard from
-    # source; that's >20 minutes on a 2-vCPU runner. Once the
-    # `examples-hm` rust-cache key warms up, real runs finish in
-    # ~3 minutes.
-    timeout-minutes: 45
+    # Debug build only — examples just need a working `hm` binary;
+    # release-mode LTO/codegen on wasmtime+cranelift can't finish in
+    # GH's 6h cap on a 2-vCPU runner. Debug builds in ~10 minutes
+    # cold, ~1 minute warm.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -56,12 +56,12 @@ jobs:
           shared-key: examples-hm
 
       - name: Build hm
-        run: cargo build --release -p harmont-cli
+        run: cargo build -p harmont-cli
 
       - uses: actions/upload-artifact@v4
         with:
           name: hm-bin
-          path: target/release/hm
+          path: target/debug/hm
           retention-days: 1
           if-no-files-found: error
 
