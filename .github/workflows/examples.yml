@@ -35,8 +35,34 @@ jobs:
             exit 1
           fi
 
-  run-example:
+  # Build `hm` once and share the binary across every matrix leg.
+  # Each leg only needs Python + Docker + the binary; making them
+  # re-compile the whole workspace 17× was the long tent-pole.
+  build-hm:
     needs: validate-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: examples-hm
+
+      - name: Build hm
+        run: cargo build --release -p harmont-cli
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hm-bin
+          path: target/release/hm
+          retention-days: 1
+          if-no-files-found: error
+
+  run-example:
+    needs: build-hm
     name: ${{ matrix.example }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -64,22 +90,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system build deps
-        # libdbus-1-dev is required by the `keyring` crate's
-        # sync-secret-service feature; the GH-hosted Ubuntu runner
-        # doesn't ship the headers by default.
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libdbus-1-dev pkg-config
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          # All matrix legs share the same hm binary; one cache key for the
-          # whole workflow is sufficient.
-          shared-key: examples-hm
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -89,8 +99,14 @@ jobs:
           git clone --depth 1 https://github.com/harmont-dev/harmont-py /tmp/harmont-py
           pip install /tmp/harmont-py
 
-      - name: Build hm
-        run: cargo build --release -p harmont-cli
+      - name: Download hm binary
+        uses: actions/download-artifact@v4
+        with:
+          name: hm-bin
+          path: bin
+
+      - name: Mark hm executable
+        run: chmod +x bin/hm
 
       - name: Run example via hm run
         working-directory: examples/${{ matrix.example }}
@@ -99,4 +115,4 @@ jobs:
           # pipeline; the system Python on the runner is what setup-python
           # just installed.
           HM_NONINTERACTIVE: '1'
-        run: ../../target/release/hm run ci
+        run: ${{ github.workspace }}/bin/hm run ci
