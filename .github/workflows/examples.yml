@@ -41,7 +41,11 @@ jobs:
   build-hm:
     needs: validate-matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Cold cache compiles wasmtime/cranelift + extism + bollard from
+    # source; that's >20 minutes on a 2-vCPU runner. Once the
+    # `examples-hm` rust-cache key warms up, real runs finish in
+    # ~3 minutes.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
