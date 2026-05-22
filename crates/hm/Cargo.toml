@@ -56,6 +56,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 chrono = { version = "0.4", features = ["serde"] }
 url = "2"
 base64 = "0.22"
+sha1 = "0.10"
 sha2 = "0.10"
 axum = { version = "0.7", default-features = false, features = ["tokio", "http1", "query"] }
 webbrowser = "1"
@@ -76,12 +77,16 @@ hex = "0.4"
 [features]
 default = []
 py-env = []
+docker-integration = []
 
 [dev-dependencies]
 wiremock = "0.6"
 assert_cmd = "2"
 predicates = "3"
 assert_fs = "1"
+tempfile = "3"
+nix = { version = "0.29", features = ["signal"] }
+ureq = { version = "2", default-features = false, features = ["tls"] }
 
 [lints]
 workspace = true
