@@ -1,5 +1,4 @@
 pub mod dev;
-pub mod external;
 pub mod plugin;
 pub mod run;
 pub mod version;
@@ -46,7 +45,7 @@ pub enum Command {
     /// Run a pipeline locally via Docker.
     Run(RunArgs),
 
-    /// Show hm version and plugin protocol API version.
+    /// Show hm version.
     Version,
 
     /// Manage plugins.
@@ -59,10 +58,9 @@ pub enum Command {
     #[command(subcommand)]
     Dev(DevCommand),
 
-    /// Plugin-provided subcommand. Captured raw; the dispatcher
-    /// looks it up in the registry and invokes the matching plugin.
-    #[command(external_subcommand)]
-    External(Vec<String>),
+    /// Interact with the Harmont cloud API.
+    #[command(subcommand)]
+    Cloud(hm_plugin_cloud::cli::CloudCommand),
 }
 
 /// Dispatch a parsed CLI command to the appropriate handler. Returns an exit code.
@@ -76,7 +74,11 @@ pub async fn dispatch(command: Command, ctx: RunContext) -> Result<i32> {
         Command::Dev(cmd) => dev::dispatch(cmd, ctx).await,
         Command::Version => version::run().await.map(|()| 0),
         Command::Plugin(cmd) => plugin::run(cmd).await.map(|()| 0),
-        Command::External(argv) => external::run(argv).await,
+        Command::Cloud(cmd) => {
+            let env: std::collections::BTreeMap<String, String> = std::env::vars()
+                .filter(|(k, _)| k.starts_with("HARMONT_") || k.starts_with("HM_"))
+                .collect();
+            hm_plugin_cloud::cli::dispatch_command(cmd, env).await
+        }
     }
 }
-

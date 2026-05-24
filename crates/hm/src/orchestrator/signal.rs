@@ -1,7 +1,7 @@
 //! Bridges OS signals to the orchestrator's `CancellationToken`.
 //!
 //! Today's hm process: a single tokio runtime serving one CLI command.
-//! Ctrl-C should: (1) flip the token so plugins drain quickly; (2)
+//! Ctrl-C should: (1) flip the token so runners drain quickly; (2)
 //! exit with code 130 (sigint).
 
 // Pedantic-bucket nags accepted at module scope:
