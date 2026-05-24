@@ -36,22 +36,30 @@ pub mod common;
 
 use std::collections::BTreeMap;
 
+use daggy::petgraph::visit::IntoNodeReferences;
+
 use common::fixtures;
-use harmont_cli::orchestrator::graph::Graph;
+use hm_pipeline_ir::PipelineGraph;
 use harmont_cli::plugin::{PluginRegistry, RegistryConfig};
-use hm_plugin_protocol::{ArchiveId, CacheDecision, ExecutorInput, Pipeline, StepResult};
+use hm_plugin_protocol::{ArchiveId, CacheDecision, ExecutorInput, StepResult};
 use uuid::Uuid;
 
 const PIPELINE_JSON: &[u8] = br#"{
     "version": "0",
-    "steps": [
-        {
-            "type": "command",
-            "key": "fs-step",
-            "cmd": "irrelevant; fixture ignores cmd",
-            "runner": "freestyle"
-        }
-    ]
+    "graph": {
+        "nodes": [
+            {
+                "step": {
+                    "key": "fs-step",
+                    "cmd": "irrelevant; fixture ignores cmd",
+                    "runner": "freestyle"
+                },
+                "env": {}
+            }
+        ],
+        "edge_property": "directed",
+        "edges": []
+    }
 }"#;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -76,15 +84,17 @@ async fn runner_field_dispatches_to_named_plugin() {
     })
     .expect("load registry");
 
-    // 2. Parse the IR and build the graph — the conversion under test.
-    let pipeline: Pipeline = serde_json::from_slice(PIPELINE_JSON).expect("parse pipeline");
-    let graph = Graph::build(&pipeline).expect("build graph");
+    // 2. Deserialize the graph directly from JSON — the new wire format.
+    let graph: PipelineGraph = serde_json::from_slice(PIPELINE_JSON).expect("parse graph");
 
     // Sanity check: the graph must preserve `runner` from the IR.
     // This is the cheap fast-fail; the dispatch check below is the
     // load-bearing one.
+    let (_, first_transition) = graph.dag().graph().node_references()
+        .find(|(_, t)| t.step.key == "fs-step")
+        .unwrap();
     assert_eq!(
-        graph.nodes[0].step.runner.as_deref(),
+        first_transition.step.runner.as_deref(),
         Some("freestyle"),
         "graph dropped `runner` field — A3's wire-type fix has regressed"
     );
@@ -92,7 +102,7 @@ async fn runner_field_dispatches_to_named_plugin() {
     // 3. Build the executor input exactly as the scheduler does
     //    (orchestrator/scheduler.rs::run_chain). Cloning the wire
     //    step preserves `runner` and `runner_args` verbatim.
-    let step_wire = graph.nodes[0].step.clone();
+    let step_wire = first_transition.step.clone();
     let input = ExecutorInput {
         step: step_wire,
         workspace_archive_id: ArchiveId(Uuid::nil()),

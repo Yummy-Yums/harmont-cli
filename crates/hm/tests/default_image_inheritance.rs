@@ -13,25 +13,37 @@
     reason = "integration test pinning a tiny invariant"
 )]
 
-use harmont_cli::orchestrator::graph::Graph;
-use hm_plugin_protocol::Pipeline;
+use daggy::petgraph::visit::IntoNodeReferences;
+use hm_pipeline_ir::PipelineGraph;
 
-fn decode(json: &[u8]) -> Pipeline {
-    serde_json::from_slice::<Pipeline>(json).unwrap()
+fn decode(json: &[u8]) -> PipelineGraph {
+    serde_json::from_slice::<PipelineGraph>(json).unwrap()
+}
+
+fn find_step<'a>(g: &'a PipelineGraph, key: &str) -> &'a hm_pipeline_ir::CommandStep {
+    let dag = g.dag();
+    let (_, t) = dag.graph().node_references()
+        .find(|(_, t)| t.step.key == key)
+        .unwrap();
+    &t.step
 }
 
 #[test]
 fn root_step_inherits_default_image() {
-    let p = decode(br#"{
+    let g = decode(br#"{
         "version": "0",
         "default_image": "ubuntu:24.04",
-        "steps": [
-            {"type": "command", "key": "apt-base", "cmd": "apt-get update"}
-        ]
+        "graph": {
+            "nodes": [
+                {"step": {"key": "apt-base", "cmd": "apt-get update", "image": "ubuntu:24.04"}, "env": {}}
+            ],
+            "edge_property": "directed",
+            "edges": []
+        }
     }"#);
-    let g = Graph::build(&p).expect("build graph");
+    let step = find_step(&g, "apt-base");
     assert_eq!(
-        g.nodes[0].step.image.as_deref(),
+        step.image.as_deref(),
         Some("ubuntu:24.04"),
         "root step must inherit pipeline default_image"
     );
@@ -39,17 +51,20 @@ fn root_step_inherits_default_image() {
 
 #[test]
 fn root_step_explicit_image_wins() {
-    let p = decode(br#"{
+    let g = decode(br#"{
         "version": "0",
         "default_image": "ubuntu:24.04",
-        "steps": [
-            {"type": "command", "key": "rust", "cmd": "cargo build",
-             "image": "rust:1.82"}
-        ]
+        "graph": {
+            "nodes": [
+                {"step": {"key": "rust", "cmd": "cargo build", "image": "rust:1.82"}, "env": {}}
+            ],
+            "edge_property": "directed",
+            "edges": []
+        }
     }"#);
-    let g = Graph::build(&p).expect("build graph");
+    let step = find_step(&g, "rust");
     assert_eq!(
-        g.nodes[0].step.image.as_deref(),
+        step.image.as_deref(),
         Some("rust:1.82"),
         "explicit per-step image must override default_image"
     );
@@ -60,34 +75,42 @@ fn child_step_unchanged_by_default_image() {
     // Children boot from the parent's committed snapshot at runtime,
     // not from an image tag — leaving their image=None is the correct
     // wire state for chain steps.
-    let p = decode(br#"{
+    let g = decode(br#"{
         "version": "0",
         "default_image": "ubuntu:24.04",
-        "steps": [
-            {"type": "command", "key": "parent", "cmd": "echo p"},
-            {"type": "command", "key": "child",  "cmd": "echo c",
-             "builds_in": "parent"}
-        ]
+        "graph": {
+            "nodes": [
+                {"step": {"key": "parent", "cmd": "echo p", "image": "ubuntu:24.04"}, "env": {}},
+                {"step": {"key": "child",  "cmd": "echo c"}, "env": {}}
+            ],
+            "edge_property": "directed",
+            "edges": [
+                [0, 1, "builds_in"]
+            ]
+        }
     }"#);
-    let g = Graph::build(&p).expect("build graph");
-    let child = g.nodes.iter().find(|n| n.step.key == "child").unwrap();
+    let step = find_step(&g, "child");
     assert!(
-        child.step.image.is_none(),
+        step.image.is_none(),
         "child step must not inherit default_image — chain steps boot from parent snapshot",
     );
 }
 
 #[test]
 fn no_default_image_leaves_root_alone() {
-    let p = decode(br#"{
+    let g = decode(br#"{
         "version": "0",
-        "steps": [
-            {"type": "command", "key": "k", "cmd": "true"}
-        ]
+        "graph": {
+            "nodes": [
+                {"step": {"key": "k", "cmd": "true"}, "env": {}}
+            ],
+            "edge_property": "directed",
+            "edges": []
+        }
     }"#);
-    let g = Graph::build(&p).expect("build graph");
+    let step = find_step(&g, "k");
     assert!(
-        g.nodes[0].step.image.is_none(),
+        step.image.is_none(),
         "absent default_image must not synthesize an image"
     );
 }
