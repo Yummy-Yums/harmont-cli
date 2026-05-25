@@ -29,13 +29,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from . import _decorator, dev, py
-from ._deploy import Deployment, deploy
+from . import _decorator, py
 from ._envelope import dump_registry_json
 from ._step import Step, scratch, wait
 from ._target import clear_target_cache, target  # noqa: F401  clear_target_cache used by tests
 from ._toolchain import apt_base
-from ._typing import BaseImage, Dep, Target
+from ._typing import BaseImage, Target
 from .cache import (
     CacheCompose,
     CacheForever,
@@ -142,8 +141,6 @@ __all__ = [
     "CacheOnChange",
     "CachePolicy",
     "CacheTTL",
-    "Dep",
-    "Deployment",
     "Pipeline",
     "RustProject",
     "Step",
@@ -152,8 +149,6 @@ __all__ = [
     "cmake",
     "compose",
     "composer",
-    "deploy",
-    "dev",
     "dotnet",
     "dump_registry_json",
     "elm",
