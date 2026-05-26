@@ -17,7 +17,7 @@
 > [!WARNING]
 > Harmont is in **early alpha**. Today it's a powerful local task runner —
 > think `make` or `just`, but with DAG-based parallel execution, Docker
-> isolation, layer caching, and typed toolchain presets for 16+ languages.
+> isolation, layer caching, and typed toolchain presets for many languages.
 > The cloud CI/CD platform at [harmont.dev](https://harmont.dev) is under
 > active development. APIs will change. We'd love your feedback — [join the
 > community](#community).
