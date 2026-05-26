@@ -5,7 +5,8 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "DSL engine: evaluate Python/TypeScript pipeline definitions via system runtimes."
-publish = false
+keywords = ["ci", "harmont", "dsl"]
+categories = ["command-line-utilities"]
 
 [lib]
 path = "src/lib.rs"

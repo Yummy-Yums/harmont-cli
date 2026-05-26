@@ -39,6 +39,7 @@ jobs:
           sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm-pipeline-ir/Cargo.toml
           sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm-plugin-protocol/Cargo.toml
           sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm-plugin-cloud/Cargo.toml
+          sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm-dsl-engine/Cargo.toml
           sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm/Cargo.toml
 
           # Rewrite workspace.dependencies pins so dependents resolve to the
@@ -48,6 +49,7 @@ jobs:
           sed -i "s|hm-pipeline-ir     = { path = \"crates/hm-pipeline-ir\",     version = \"0.0.0-dev\" }|hm-pipeline-ir     = { path = \"crates/hm-pipeline-ir\",     version = \"$VERSION\" }|" Cargo.toml
           sed -i "s|hm-plugin-protocol = { path = \"crates/hm-plugin-protocol\", version = \"0.0.0-dev\" }|hm-plugin-protocol = { path = \"crates/hm-plugin-protocol\", version = \"$VERSION\" }|" Cargo.toml
           sed -i "s|hm-plugin-cloud    = { path = \"crates/hm-plugin-cloud\",    version = \"0.0.0-dev\" }|hm-plugin-cloud    = { path = \"crates/hm-plugin-cloud\",    version = \"$VERSION\" }|" Cargo.toml
+          sed -i "s|hm-dsl-engine      = { path = \"crates/hm-dsl-engine\",     version = \"0.0.0-dev\" }|hm-dsl-engine      = { path = \"crates/hm-dsl-engine\",     version = \"$VERSION\" }|" Cargo.toml
 
           cargo check --workspace --exclude hm-fixtures
 
@@ -90,6 +92,17 @@ jobs:
             echo "hm-plugin-cloud@$VERSION already published, skipping"
           else
             cargo publish -p hm-plugin-cloud --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
+          fi
+
+      - name: Wait for crates.io index
+        run: sleep 30
+
+      - name: Publish hm-dsl-engine
+        run: |
+          if curl -sf -A "harmont-release-ci (github-actions)" "https://crates.io/api/v1/crates/hm-dsl-engine/$VERSION" > /dev/null 2>&1; then
+            echo "hm-dsl-engine@$VERSION already published, skipping"
+          else
+            cargo publish -p hm-dsl-engine --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
           fi
 
       - name: Wait for crates.io index
