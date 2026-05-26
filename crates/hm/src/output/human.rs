@@ -7,6 +7,7 @@ use std::fmt;
 use std::io::Write;
 
 use hm_plugin_protocol::BuildEvent;
+use owo_colors::{AnsiColors, OwoColorize};
 use uuid::Uuid;
 
 use crate::runner::OutputRenderer;
@@ -19,16 +20,42 @@ use crate::runner::OutputRenderer;
 pub struct HumanRenderer<W> {
     out: W,
     step_keys: HashMap<Uuid, String>,
+    color: bool,
 }
 
 impl<W> HumanRenderer<W> {
     /// Create a new renderer writing to `out`.
     #[must_use]
-    pub fn new(out: W) -> Self {
+    pub fn new(out: W, color: bool) -> Self {
         Self {
             out,
             step_keys: HashMap::new(),
+            color,
         }
+    }
+}
+
+fn key_color(key: &str) -> AnsiColors {
+    const PALETTE: [AnsiColors; 6] = [
+        AnsiColors::Cyan,
+        AnsiColors::Magenta,
+        AnsiColors::Yellow,
+        AnsiColors::Green,
+        AnsiColors::Blue,
+        AnsiColors::BrightRed,
+    ];
+    let mut h: u32 = 0;
+    for b in key.bytes() {
+        h = h.wrapping_mul(31).wrapping_add(u32::from(b));
+    }
+    PALETTE[(h as usize) % PALETTE.len()]
+}
+
+fn fmt_key(key: &str, color: bool) -> String {
+    if color {
+        format!("[{}]", key.color(key_color(key)))
+    } else {
+        format!("[{key}]")
     }
 }
 
@@ -64,26 +91,24 @@ where
                 runner,
                 image,
             } => {
-                let key = self.step_key(step_id);
-                image.as_ref().map_or_else(
-                    || format!("[{key}] start (runner={runner})\n"),
-                    |img| format!("[{key}] start (runner={runner} image={img})\n"),
-                )
-                .into_bytes()
+                let prefix = fmt_key(self.step_key(step_id), self.color);
+                image
+                    .as_ref()
+                    .map_or_else(
+                        || format!("{prefix} start (runner={runner})\n"),
+                        |img| format!("{prefix} start (runner={runner} image={img})\n"),
+                    )
+                    .into_bytes()
             }
 
-            BuildEvent::StepLog {
-                step_id, line, ..
-            } => {
-                let key = self.step_key(step_id);
-                format!("[{key}] {line}\n").into_bytes()
+            BuildEvent::StepLog { step_id, line, .. } => {
+                let prefix = fmt_key(self.step_key(step_id), self.color);
+                format!("{prefix} {line}\n").into_bytes()
             }
 
-            BuildEvent::StepCacheHit {
-                step_id, tag, ..
-            } => {
-                let key = self.step_key(step_id);
-                format!("[{key}] cache hit ({tag})\n").into_bytes()
+            BuildEvent::StepCacheHit { step_id, tag, .. } => {
+                let prefix = fmt_key(self.step_key(step_id), self.color);
+                format!("{prefix} cache hit ({tag})\n").into_bytes()
             }
 
             BuildEvent::StepEnd {
@@ -92,16 +117,14 @@ where
                 duration_ms,
                 ..
             } => {
-                let key = self.step_key(step_id);
-                format!("[{key}] end exit={exit_code} duration={duration_ms}ms\n").into_bytes()
+                let prefix = fmt_key(self.step_key(step_id), self.color);
+                format!("{prefix} end exit={exit_code} duration={duration_ms}ms\n").into_bytes()
             }
 
             BuildEvent::BuildEnd {
                 exit_code,
                 duration_ms,
-            } => {
-                format!("build: end exit={exit_code} duration={duration_ms}ms\n").into_bytes()
-            }
+            } => format!("build: end exit={exit_code} duration={duration_ms}ms\n").into_bytes(),
 
             BuildEvent::ChainFailed {
                 chain_idx,
@@ -109,10 +132,17 @@ where
                 exit_code,
                 message,
                 ..
-            } => format!(
-                "chain {chain_idx}: FAILED at step '{failed_step_key}' (exit={exit_code}): {message}\n"
-            )
-            .into_bytes(),
+            } => {
+                let styled_key = if self.color {
+                    format!("{}", failed_step_key.color(key_color(failed_step_key)))
+                } else {
+                    failed_step_key.clone()
+                };
+                format!(
+                    "chain {chain_idx}: FAILED at step '{styled_key}' (exit={exit_code}): {message}\n"
+                )
+                .into_bytes()
+            }
         };
 
         let _ = self.out.write_all(&bytes);
@@ -129,9 +159,9 @@ mod tests {
     use super::*;
     use hm_plugin_protocol::{PlanSummary, StdStream};
 
-    /// Helper: create a renderer backed by an in-memory buffer.
+    /// Helper: create a renderer backed by an in-memory buffer (no color).
     fn renderer() -> HumanRenderer<Vec<u8>> {
-        HumanRenderer::new(Vec::new())
+        HumanRenderer::new(Vec::new(), false)
     }
 
     /// Helper: drain the buffer as a UTF-8 string.
@@ -167,6 +197,8 @@ mod tests {
             step_id,
             key: "build".into(),
             chain_idx: 0,
+            parent_key: None,
+            display_name: "build".into(),
         });
 
         r.on_event(&BuildEvent::StepLog {
@@ -194,5 +226,29 @@ mod tests {
 
         let s = output(&r);
         assert!(s.starts_with("[?]"), "expected [?] prefix: {s}");
+    }
+
+    #[test]
+    fn colored_output_wraps_key_in_ansi() {
+        let mut r = HumanRenderer::new(Vec::new(), true);
+        let step_id = Uuid::new_v4();
+
+        r.on_event(&BuildEvent::StepQueued {
+            step_id,
+            key: "build".into(),
+            chain_idx: 0,
+            parent_key: None,
+            display_name: "build".into(),
+        });
+        r.on_event(&BuildEvent::StepLog {
+            step_id,
+            stream: StdStream::Stdout,
+            line: "hello".into(),
+            ts: chrono::Utc::now(),
+        });
+
+        let s = output(&r);
+        assert!(s.contains("\x1b["), "expected ANSI codes: {s}");
+        assert!(s.contains("hello"), "expected log line: {s}");
     }
 }
