@@ -151,14 +151,16 @@ jobs:
 
       - name: Package
         run: |
-          ARCHIVE="hm-${VERSION}-${{ matrix.target }}.tar.gz"
+          ARCHIVE="hm-${{ matrix.target }}.tar.gz"
           tar czf "$ARCHIVE" -C "target/${{ matrix.target }}/release" hm
-          echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
+          sha256sum "$ARCHIVE" > "$ARCHIVE.sha256" || shasum -a 256 "$ARCHIVE" > "$ARCHIVE.sha256"
 
       - uses: actions/upload-artifact@v4
         with:
           name: hm-${{ matrix.target }}
-          path: ${{ env.ARCHIVE }}
+          path: |
+            hm-${{ matrix.target }}.tar.gz
+            hm-${{ matrix.target }}.tar.gz.sha256
           retention-days: 1
 
   github-release:
