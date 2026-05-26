@@ -1,11 +1,12 @@
 [package]
 name = "hm-plugin-cloud"
-version = "0.1.0"
+version = "0.0.0-dev"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Cloud client library for the hm CLI."
-publish = false
+keywords = ["ci", "harmont", "cloud"]
+categories = ["command-line-utilities"]
 
 [lib]
 path = "src/lib.rs"
