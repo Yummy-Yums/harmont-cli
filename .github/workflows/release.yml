@@ -102,7 +102,7 @@ jobs:
           if curl -sf -A "harmont-release-ci (github-actions)" "https://crates.io/api/v1/crates/hm-dsl-engine/$VERSION" > /dev/null 2>&1; then
             echo "hm-dsl-engine@$VERSION already published, skipping"
           else
-            cargo publish -p hm-dsl-engine --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
+            cargo publish -p hm-dsl-engine --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty --no-verify
           fi
 
       - name: Wait for crates.io index
@@ -113,7 +113,7 @@ jobs:
           if curl -sf -A "harmont-release-ci (github-actions)" "https://crates.io/api/v1/crates/harmont-cli/$VERSION" > /dev/null 2>&1; then
             echo "harmont-cli@$VERSION already published, skipping"
           else
-            cargo publish -p harmont-cli --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
+            cargo publish -p harmont-cli --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty --no-verify
           fi
 
   build-binary:
