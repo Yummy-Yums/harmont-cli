@@ -35,13 +35,11 @@ jobs:
           VERSION="${GITHUB_REF_NAME#v}"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm-plugin-protocol/Cargo.toml
-          sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm-plugin-sdk/Cargo.toml
           sed -i "0,/version = \"0.0.0-dev\"/s//version = \"$VERSION\"/" crates/hm/Cargo.toml
           # Rewrite workspace.dependencies pins so dependents resolve to the
           # tagged version (cargo publish strips path deps; the version field
           # is what consumers will receive).
           sed -i "s|hm-plugin-protocol = { path = \"crates/hm-plugin-protocol\", version = \"0.0.0-dev\" }|hm-plugin-protocol = { path = \"crates/hm-plugin-protocol\", version = \"$VERSION\" }|" Cargo.toml
-          sed -i "s|hm-plugin-sdk      = { path = \"crates/hm-plugin-sdk\",      version = \"0.0.0-dev\" }|hm-plugin-sdk      = { path = \"crates/hm-plugin-sdk\",      version = \"$VERSION\" }|" Cargo.toml
           cargo check --workspace --exclude hm-fixtures
 
       - name: Publish hm-plugin-protocol
@@ -50,17 +48,6 @@ jobs:
             echo "hm-plugin-protocol@$VERSION already published, skipping"
           else
             cargo publish -p hm-plugin-protocol --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
-          fi
-
-      - name: Wait for crates.io index
-        run: sleep 30
-
-      - name: Publish hm-plugin-sdk
-        run: |
-          if curl -sf -A "harmont-release-ci (github-actions)" "https://crates.io/api/v1/crates/hm-plugin-sdk/$VERSION" > /dev/null 2>&1; then
-            echo "hm-plugin-sdk@$VERSION already published, skipping"
-          else
-            cargo publish -p hm-plugin-sdk --token ${{ secrets.CRATES_IO_TOKEN }} --allow-dirty
           fi
 
       - name: Wait for crates.io index
