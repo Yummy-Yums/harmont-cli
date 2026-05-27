@@ -22,6 +22,10 @@
 > active development. APIs will change. We'd love your feedback -- [join the
 > community](#community).
 >
+> The performance of the `hm` CLI is not as good as I'd like it to be. I'm
+> actively working on cross-run caching. The code quality is similar -- needs
+> improving and is a work in progress.
+>
 > **`hm` will always remain open-source, and pluggable into any CI/CD
 > provider.**
 
@@ -175,6 +179,74 @@ export default pipelines;
 
 Browse the [example projects](./examples) for idiomatic pipelines in Rust,
 Go, Python, Java, C++, React, Next.js, and more.
+
+## GitHub Actions
+
+Use [`harmont-dev/actions-hm`](https://github.com/harmont-dev/actions-hm) to run
+your pipelines in GitHub Actions with automatic Docker image caching:
+
+```yaml
+name: CI
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+  packages: write        # needed for Docker image caching via GHCR
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: harmont-dev/actions-hm@main
+        with:
+          pipeline: ci
+```
+
+The action installs `hm`, runs your pipeline, and caches Docker images in GitHub
+Container Registry so subsequent runs skip unchanged steps. No `actions/cache`
+configuration required.
+
+<details>
+<summary><b>Multiple pipelines</b></summary>
+
+```yaml
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: harmont-dev/actions-hm@main
+        with:
+          pipeline: lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: harmont-dev/actions-hm@main
+        with:
+          pipeline: test
+          parallelism: 4
+```
+
+</details>
+
+<details>
+<summary><b>Without caching</b></summary>
+
+```yaml
+- uses: harmont-dev/actions-hm@main
+  with:
+    pipeline: ci
+    cache: 'false'
+```
+
+</details>
+
+See the [action repo](https://github.com/harmont-dev/actions-hm) for the full
+input reference, sub-actions, and caching details.
 
 ## Documentation
 
