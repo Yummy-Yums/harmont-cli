@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use anyhow::Result;
 use hm_plugin_protocol::{BuildEvent, ExecutorInput, StepResult};
@@ -18,13 +18,8 @@ use tokio_util::sync::CancellationToken;
 use crate::orchestrator::archive::ArchiveStore;
 use crate::orchestrator::docker_client::DockerClient;
 use crate::orchestrator::events::EventBus;
-use crate::orchestrator::workspace::WorkspaceManager;
 
 pub mod docker;
-
-// ---------------------------------------------------------------------------
-// RunContext
-// ---------------------------------------------------------------------------
 
 /// Shared context threaded into every runner invocation.
 ///
@@ -37,12 +32,7 @@ pub struct RunContext {
     pub event_bus: Arc<EventBus>,
     pub archives: Arc<ArchiveStore>,
     pub cancel: CancellationToken,
-    pub workspace: Arc<Mutex<WorkspaceManager>>,
 }
-
-// ---------------------------------------------------------------------------
-// StepRunner trait
-// ---------------------------------------------------------------------------
 
 /// Async trait implemented by step executors (e.g. the Docker runner).
 ///
@@ -70,10 +60,6 @@ pub trait StepRunner: Send + Sync + fmt::Debug {
     ) -> Pin<Box<dyn Future<Output = Result<StepResult>> + Send + '_>>;
 }
 
-// ---------------------------------------------------------------------------
-// OutputRenderer trait
-// ---------------------------------------------------------------------------
-
 /// Synchronous observer of [`BuildEvent`]s.
 ///
 /// Implementations format events for human consumption (progress bars,
@@ -82,10 +68,6 @@ pub trait OutputRenderer: Send + fmt::Debug {
     /// Called once per event in emission order.
     fn on_event(&mut self, event: &BuildEvent);
 }
-
-// ---------------------------------------------------------------------------
-// RunnerRegistry
-// ---------------------------------------------------------------------------
 
 /// Maps runner names to [`StepRunner`] implementations.
 ///
@@ -149,10 +131,6 @@ impl fmt::Debug for RunnerRegistry {
             .finish()
     }
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

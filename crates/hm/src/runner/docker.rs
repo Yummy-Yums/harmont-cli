@@ -1,9 +1,10 @@
 //! Docker-based step runner.
 //!
-//! Each step runs inside a Docker container with the workspace
-//! bind-mounted from the host via COW clones. System-level state
-//! (installed packages) propagates via Docker image commits; workspace
-//! files propagate via host-side COW directory clones.
+//! Each step runs inside a Docker container. The source archive is
+//! piped into `/workspace` via `tar -xzf -` before the step command
+//! runs. System-level state (packages, caches, virtualenvs) AND
+//! workspace files all propagate via Docker image commits — no bind
+//! mounts, no host-side COW clones.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -17,10 +18,6 @@ use uuid::Uuid;
 
 use super::{RunContext, StepRunner};
 use crate::orchestrator::events::EventBus;
-
-// ---------------------------------------------------------------------------
-// DockerRunner
-// ---------------------------------------------------------------------------
 
 /// Step runner that executes pipeline steps inside Docker containers
 /// via the local daemon (Bollard).
@@ -42,10 +39,6 @@ impl StepRunner for DockerRunner {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Step execution
-// ---------------------------------------------------------------------------
-
 fn resolve_image(step: &CommandStep, input: &ExecutorInput) -> String {
     if let Some(snap) = &input.parent_snapshot {
         return snap.to_string();
@@ -66,17 +59,6 @@ async fn run_step(ctx: &RunContext, input: ExecutorInput) -> Result<StepResult> 
         });
     }
 
-    let workspace_mgr = &ctx.workspace;
-
-    let workspace_path = {
-        let mgr = workspace_mgr
-            .lock()
-            .map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
-        mgr.workspace_path(&input.step.key)
-            .map(std::path::Path::to_path_buf)
-            .ok_or_else(|| anyhow::anyhow!("workspace for step '{}' not created", input.step.key))?
-    };
-
     let image = resolve_image(&input.step, &input);
     let container_name = sanitize_container_name(&input.run_id.to_string(), &input.step.key);
     let env_vec: Vec<String> = input.env.iter().map(|(k, v)| format!("{k}={v}")).collect();
@@ -93,13 +75,38 @@ async fn run_step(ctx: &RunContext, input: ExecutorInput) -> Result<StepResult> 
         }
     }
 
-    // Start container with workspace bind mount.
-    let binds = vec![format!("{}:{}", workspace_path.display(), input.workdir)];
     let cid = ctx
         .docker
-        .start_long_lived_with_mounts(&image, &env_vec, &input.workdir, &container_name, &binds)
+        .start_long_lived(&image, &env_vec, &input.workdir, &container_name)
         .await
-        .context("docker start with mounts failed")?;
+        .context("docker start failed")?;
+
+    // Pipe source archive into /workspace. Runs for every step — cached
+    // parent images contain stale workspace files; tar overwrites source
+    // while preserving build artifacts (tar is additive).
+    let archive_bytes = ctx
+        .archives
+        .get_bytes(input.workspace_archive_id)
+        .ok_or_else(|| anyhow::anyhow!("source archive not found"))?;
+
+    let mkdir_cmd = vec!["mkdir".into(), "-p".into(), input.workdir.clone()];
+    let mut sink = tokio::io::sink();
+    ctx.docker
+        .exec_streaming(&cid, &mkdir_cmd, &env_vec, "/", &mut sink)
+        .await
+        .context("mkdir /workspace")?;
+
+    let tar_cmd = vec![
+        "tar".into(),
+        "-xzf".into(),
+        "-".into(),
+        "-C".into(),
+        input.workdir.clone(),
+    ];
+    ctx.docker
+        .exec_streaming_stdin(&cid, &tar_cmd, &env_vec, "/", &archive_bytes, &mut sink)
+        .await
+        .context("pipe source archive into container")?;
 
     let result = run_in_container(ctx, &cid, &input, &env_vec, &plan).await;
     ctx.docker.stop_remove(&cid).await;
@@ -189,10 +196,6 @@ async fn run_in_container(
     })
 }
 
-// ---------------------------------------------------------------------------
-// DecisionPlan
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Clone)]
 struct DecisionPlan {
     run_command: bool,
@@ -220,10 +223,6 @@ fn decision_plan(decision: &CacheDecision) -> DecisionPlan {
     }
 }
 
-// ---------------------------------------------------------------------------
-// sanitize_container_name
-// ---------------------------------------------------------------------------
-
 fn sanitize_container_name(run_id: &str, step_key: &str) -> String {
     let run_short: String = run_id.chars().take(8).collect();
     let key: String = step_key
@@ -238,10 +237,6 @@ fn sanitize_container_name(run_id: &str, step_key: &str) -> String {
         .collect();
     format!("harmont-{run_short}-{key}")
 }
-
-// ---------------------------------------------------------------------------
-// StepLogWriter
-// ---------------------------------------------------------------------------
 
 /// Streams bytes from a Docker exec into per-line [`BuildEvent::StepLog`]
 /// events on the [`EventBus`]. Buffers partial lines until a `\n` arrives.
@@ -310,10 +305,6 @@ impl tokio::io::AsyncWrite for StepLogWriter {
         std::task::Poll::Ready(Ok(()))
     }
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
