@@ -32,7 +32,11 @@ instantly on your machine in Docker containers. **No YAML.** No `commit -m "run
 ci" --allow-empty` spam. Each pipeline step runs in an isolated container with
 built-in caching, parallel execution, and consistent environments.
 
-<video src="https://github.com/harmont-dev/harmont-cli/raw/main/.github/res/tui-demo.mp4" autoplay loop muted playsinline width="100%"></video>
+
+
+https://github.com/harmont-dev/harmont-cli/raw/main/.github/res/tui-demo.mp4
+
+
 
 **Features:**
 
