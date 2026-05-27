@@ -18,10 +18,30 @@ use bollard::image::{
     CommitContainerOptions, CreateImageOptions, ImportImageOptions, ListImagesOptions,
     RemoveImageOptions,
 };
+use bollard::models::HostConfig;
 use futures_util::StreamExt;
 use tokio::io::AsyncWrite;
 
 use crate::error::HmError;
+
+/// Build a [`HostConfig`] with optional bind mounts and Linux capabilities.
+///
+/// Empty slices become `None` so Docker applies its defaults.
+fn build_host_config(binds: &[String], cap_add: &[String]) -> HostConfig {
+    HostConfig {
+        binds: if binds.is_empty() {
+            None
+        } else {
+            Some(binds.to_vec())
+        },
+        cap_add: if cap_add.is_empty() {
+            None
+        } else {
+            Some(cap_add.to_vec())
+        },
+        ..Default::default()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct DockerClient {
@@ -136,11 +156,34 @@ impl DockerClient {
         workdir: &str,
         name: &str,
     ) -> Result<String> {
+        self.start_long_lived_with_mounts(image, env, workdir, name, &[])
+            .await
+    }
+
+    /// Like [`Self::start_long_lived`] but with bind mounts via `HostConfig`.
+    ///
+    /// Each entry in `binds` is a Docker bind-mount string of the form
+    /// `"/host/path:/container/path"` (with an optional `:ro` suffix).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`HmError::Docker`] if the container cannot be created
+    /// (image not pulled, name conflict, OCI runtime failure) or if
+    /// `start_container` rejects the create.
+    pub async fn start_long_lived_with_mounts(
+        &self,
+        image: &str,
+        env: &[String],
+        workdir: &str,
+        name: &str,
+        binds: &[String],
+    ) -> Result<String> {
         let cfg = Config {
             image: Some(image.to_string()),
             cmd: Some(vec!["sh".into(), "-c".into(), "sleep infinity".into()]),
             env: Some(env.to_vec()),
             working_dir: Some(workdir.to_string()),
+            host_config: Some(build_host_config(binds, &[])),
             ..Default::default()
         };
         let create = self
@@ -529,5 +572,22 @@ mod smoke {
             .await
             .unwrap();
         assert!(tags.is_empty());
+    }
+
+    #[test]
+    fn build_host_config_with_binds_and_no_caps() {
+        let hc = super::build_host_config(&["/host/path:/container/path".to_string()], &[]);
+        assert_eq!(
+            hc.binds.as_ref().unwrap(),
+            &["/host/path:/container/path".to_string()]
+        );
+        assert!(hc.cap_add.is_none());
+    }
+
+    #[test]
+    fn build_host_config_empty_binds_is_none() {
+        let hc = super::build_host_config(&[], &[]);
+        assert!(hc.binds.is_none());
+        assert!(hc.cap_add.is_none());
     }
 }

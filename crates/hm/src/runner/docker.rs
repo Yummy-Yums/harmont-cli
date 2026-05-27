@@ -1,9 +1,9 @@
 //! Docker-based step runner.
 //!
-//! Replaces the old `hm-plugin-docker` WASM plugin with direct Bollard
-//! calls. All Docker orchestration (pull, start, extract, exec, commit,
-//! stop+remove) runs through [`RunContext::docker`] with cancellation
-//! support via [`RunContext::cancel`].
+//! Each step runs inside a Docker container with the workspace
+//! bind-mounted from the host via COW clones. System-level state
+//! (installed packages) propagates via Docker image commits; workspace
+//! files propagate via host-side COW directory clones.
 
 use std::future::Future;
 use std::pin::Pin;
@@ -17,38 +17,6 @@ use uuid::Uuid;
 
 use super::{RunContext, StepRunner};
 use crate::orchestrator::events::EventBus;
-
-// ---------------------------------------------------------------------------
-// EXTRACT_CMD_SH
-// ---------------------------------------------------------------------------
-
-/// Shell script for idempotent workspace extraction. Reads a `.harmont-extracted`
-/// manifest to clean up files from a previous extract, then unpacks the new
-/// archive and writes a fresh manifest. Files created by the step command
-/// (e.g. `node_modules`, build artifacts) are not tracked and survive untouched.
-const EXTRACT_CMD_SH: &str = r#"set -e
-mkdir -p "$WORKDIR"
-cd "$WORKDIR"
-manifest="$WORKDIR/.harmont-extracted"
-if [ -f "$manifest" ]; then
-  # Longest paths first: removes nested entries before their parents.
-  sort -r "$manifest" | while IFS= read -r p; do
-    [ -n "$p" ] || continue
-    if [ -d "$p" ] && [ ! -L "$p" ]; then
-      rmdir "$p" 2>/dev/null || true
-    else
-      rm -f "$p" 2>/dev/null || true
-    fi
-  done
-  rm -f "$manifest"
-fi
-# Stream the archive into a temp file so we can both list and extract.
-tmp=$(mktemp)
-trap 'rm -f "$tmp"' EXIT
-cat > "$tmp"
-tar -tzf "$tmp" > "$manifest"
-tar -xzf "$tmp"
-"#;
 
 // ---------------------------------------------------------------------------
 // DockerRunner
@@ -75,14 +43,21 @@ impl StepRunner for DockerRunner {
 }
 
 // ---------------------------------------------------------------------------
-// Core orchestration
+// Step execution
 // ---------------------------------------------------------------------------
+
+fn resolve_image(step: &CommandStep, input: &ExecutorInput) -> String {
+    if let Some(snap) = &input.parent_snapshot {
+        return snap.to_string();
+    }
+    step.image
+        .clone()
+        .unwrap_or_else(|| "alpine:latest".to_string())
+}
 
 async fn run_step(ctx: &RunContext, input: ExecutorInput) -> Result<StepResult> {
     let plan = decision_plan(&input.cache_lookup);
 
-    // Cache hit shortcut: no container, no exec; hand back the hit
-    // tag so downstream steps can boot from it.
     if !plan.run_command {
         return Ok(StepResult {
             exit_code: 0,
@@ -91,15 +66,22 @@ async fn run_step(ctx: &RunContext, input: ExecutorInput) -> Result<StepResult> 
         });
     }
 
-    let image = resolve_image(
-        &input.step,
-        plan.hit_tag.as_ref(),
-        input.parent_snapshot.as_ref(),
-    );
+    let workspace_mgr = &ctx.workspace;
+
+    let workspace_path = {
+        let mgr = workspace_mgr
+            .lock()
+            .map_err(|_| anyhow::anyhow!("workspace manager mutex poisoned"))?;
+        mgr.workspace_path(&input.step.key)
+            .map(std::path::Path::to_path_buf)
+            .ok_or_else(|| anyhow::anyhow!("workspace for step '{}' not created", input.step.key))?
+    };
+
+    let image = resolve_image(&input.step, &input);
     let container_name = sanitize_container_name(&input.run_id.to_string(), &input.step.key);
     let env_vec: Vec<String> = input.env.iter().map(|(k, v)| format!("{k}={v}")).collect();
 
-    // Ensure the image is locally available.
+    // Pull image if needed.
     if !ctx.docker.image_exists(&image).await.unwrap_or(false) {
         let docker = ctx.docker.clone();
         let cancel = ctx.cancel.clone();
@@ -111,20 +93,19 @@ async fn run_step(ctx: &RunContext, input: ExecutorInput) -> Result<StepResult> 
         }
     }
 
+    // Start container with workspace bind mount.
+    let binds = vec![format!("{}:{}", workspace_path.display(), input.workdir)];
     let cid = ctx
         .docker
-        .start_long_lived(&image, &env_vec, &input.workdir, &container_name)
+        .start_long_lived_with_mounts(&image, &env_vec, &input.workdir, &container_name, &binds)
         .await
-        .context("docker start failed")?;
+        .context("docker start with mounts failed")?;
 
-    // Always stop+remove the container, even on error.
     let result = run_in_container(ctx, &cid, &input, &env_vec, &plan).await;
     ctx.docker.stop_remove(&cid).await;
     result
 }
 
-/// Inner body executed with a running container. Separated so the
-/// caller can unconditionally clean up the container in all paths.
 async fn run_in_container(
     ctx: &RunContext,
     cid: &str,
@@ -132,37 +113,6 @@ async fn run_in_container(
     env_vec: &[String],
     plan: &DecisionPlan,
 ) -> Result<StepResult> {
-    // --- Extract workspace archive ---
-    let archive = ctx.archives.read(input.workspace_archive_id, 0, u64::MAX);
-    if archive.is_empty() {
-        anyhow::bail!("archive {} is empty or unknown", input.workspace_archive_id);
-    }
-
-    let docker = ctx.docker.clone();
-    let cancel = ctx.cancel.clone();
-    let cid_owned = cid.to_owned();
-    let workdir = input.workdir.clone();
-    let cmd = vec![
-        "sh".to_string(),
-        "-c".to_string(),
-        EXTRACT_CMD_SH.replace("$WORKDIR", &workdir),
-    ];
-    let extract_fut = async move {
-        let mut sink = tokio::io::sink();
-        let rc = docker
-            .exec_streaming_stdin(&cid_owned, &cmd, &[], "/", &archive, &mut sink)
-            .await?;
-        if rc != 0 {
-            anyhow::bail!("tar extract exited {rc}");
-        }
-        Ok::<(), anyhow::Error>(())
-    };
-    tokio::select! {
-        result = extract_fut => result.context("workspace extract failed")?,
-        () = cancel.cancelled() => anyhow::bail!("cancelled during workspace extract"),
-    }
-
-    // --- Exec step command ---
     let mut writer = StepLogWriter::new(input.step_id, Arc::clone(&ctx.event_bus));
     let docker = ctx.docker.clone();
     let cancel = ctx.cancel.clone();
@@ -195,7 +145,9 @@ async fn run_in_container(
     )]
     let exit_code = rc as i32;
 
-    // --- Commit snapshot on success ---
+    // Commit container so child steps inherit system-level changes
+    // (installed packages, etc.). Workspace files propagate via COW
+    // bind mounts, but the container image captures everything else.
     let committed = if exit_code == 0 {
         let target_tag = plan.commit_to.clone().unwrap_or_else(|| {
             let safe: String = input
@@ -266,35 +218,6 @@ fn decision_plan(decision: &CacheDecision) -> DecisionPlan {
             hit_tag: None,
         },
     }
-}
-
-// ---------------------------------------------------------------------------
-// resolve_image
-// ---------------------------------------------------------------------------
-
-/// Pick the base image for a step at boot time.
-///
-/// Priority (high to low):
-/// 1. Cache `hit_tag` — the host already located a satisfying snapshot.
-/// 2. `parent_snapshot` — the previous step in this chain committed a
-///    snapshot; chain-lineage requires we boot from it.
-/// 3. The step's `image` field.
-/// 4. Fall back to `"alpine:latest"`.
-fn resolve_image(
-    step: &CommandStep,
-    hit_tag: Option<&SnapshotRef>,
-    parent_snapshot: Option<&SnapshotRef>,
-) -> String {
-    if let Some(tag) = hit_tag {
-        return tag.to_string();
-    }
-    if let Some(snap) = parent_snapshot {
-        return snap.to_string();
-    }
-    if let Some(image) = &step.image {
-        return image.clone();
-    }
-    "alpine:latest".to_string()
 }
 
 // ---------------------------------------------------------------------------
@@ -413,33 +336,44 @@ mod tests {
         }
     }
 
-    // -- resolve_image -------------------------------------------------------
-
-    #[test]
-    fn resolve_image_hit_tag_wins() {
-        let s = step_with_image(Some("rust:1.82"));
-        let hit = SnapshotRef("cache:tag".into());
-        let parent = SnapshotRef("parent:tag".into());
-        assert_eq!(resolve_image(&s, Some(&hit), Some(&parent)), "cache:tag");
+    fn make_input(step: CommandStep, parent_snapshot: Option<SnapshotRef>) -> ExecutorInput {
+        ExecutorInput {
+            step,
+            workspace_archive_id: hm_plugin_protocol::ArchiveId::from(uuid::Uuid::nil()),
+            env: std::collections::BTreeMap::new(),
+            workdir: "/workspace".into(),
+            run_id: uuid::Uuid::nil(),
+            step_id: uuid::Uuid::nil(),
+            cache_lookup: CacheDecision::MissNoCommit,
+            parent_snapshot,
+        }
     }
 
-    #[test]
-    fn resolve_image_parent_snapshot_beats_step_image() {
-        let s = step_with_image(Some("rust:1.82"));
-        let parent = SnapshotRef("parent:tag".into());
-        assert_eq!(resolve_image(&s, None, Some(&parent)), "parent:tag");
-    }
+    // -- resolve_image ----------------------------------------------------
 
     #[test]
-    fn resolve_image_step_image_used() {
+    fn resolve_image_uses_step_image() {
         let s = step_with_image(Some("rust:1.82"));
-        assert_eq!(resolve_image(&s, None, None), "rust:1.82");
+        let input = make_input(s.clone(), None);
+        assert_eq!(resolve_image(&s, &input), "rust:1.82");
     }
 
     #[test]
     fn resolve_image_fallback_alpine() {
         let s = step_with_image(None);
-        assert_eq!(resolve_image(&s, None, None), "alpine:latest");
+        let input = make_input(s.clone(), None);
+        assert_eq!(resolve_image(&s, &input), "alpine:latest");
+    }
+
+    #[test]
+    fn resolve_image_prefers_parent_snapshot() {
+        let s = step_with_image(Some("rust:1.82"));
+        let snap = SnapshotRef::from("harmont-local-ephemeral/base:abc123".to_string());
+        let input = make_input(s.clone(), Some(snap));
+        assert_eq!(
+            resolve_image(&s, &input),
+            "harmont-local-ephemeral/base:abc123"
+        );
     }
 
     // -- decision_plan -------------------------------------------------------
