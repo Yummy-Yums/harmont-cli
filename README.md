@@ -1,7 +1,3 @@
-
-
-https://github.com/user-attachments/assets/e7041697-0582-46fc-ba47-356cd51cf08c
-
 <p>
   <h1>Harmont</h1>
   <a href="https://github.com/harmont-dev/harmont-cli/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/harmont-dev/harmont-cli/ci.yml?branch=main&logo=github" alt="CI"></a>
