@@ -1,8 +1,5 @@
 <p align="center">
-  <img src=".github/res/github-banner.png" alt="harmont — CI/CD that sucks less." width="100%">
-</p>
-
-<p align="center">
+  <h1>Harmont</h1>
   <a href="https://github.com/harmont-dev/harmont-cli/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/harmont-dev/harmont-cli/ci.yml?branch=main&logo=github" alt="CI"></a>
   <a href="https://crates.io/crates/harmont-cli"><img src="https://img.shields.io/crates/v/harmont-cli?logo=rust" alt="crates.io"></a>
   <a href="https://discord.gg/hm-dev"><img src="https://img.shields.io/discord/1503184719578136576?logo=discord&label=discord" alt="Discord"></a>
@@ -15,29 +12,38 @@
 </p>
 
 > [!WARNING]
-> Harmont is in **early alpha**. Today it's a powerful local task runner —
-> think `make` or `just`, but with DAG-based parallel execution, Docker
-> isolation, layer caching, and typed toolchain presets for many languages.
+> Harmont is in **early alpha**.
+>
+> Today it's a powerful task runner -- like `make` or `just`, but with DAG-based
+> parallel execution, Docker isolation, layer caching, and typed toolchain
+> presets for many languages.
+>
 > The cloud CI/CD platform at [harmont.dev](https://harmont.dev) is under
-> active development. APIs will change. We'd love your feedback — [join the
+> active development. APIs will change. We'd love your feedback -- [join the
 > community](#community).
+>
+> **`hm` will always remain open-source, and pluggable into any CI/CD
+> provider.**
 
 ## What is Harmont?
 
-Harmont lets you define CI/CD pipelines in TypeScript or Python and run them
-instantly on your machine in Docker containers. No YAML. No waiting for CI. No
-`commit -m "run ci" --allow-empty` spam. Each pipeline step runs in an isolated
-container with built-in caching, parallel execution, and consistent environments.
+Harmont lets you define CI/CD workflows in TypeScript or Python and run them
+instantly on your machine in Docker containers. **No YAML.** No `commit -m "run
+ci" --allow-empty` spam. Each pipeline step runs in an isolated container with
+built-in caching, parallel execution, and consistent environments.
+
+![TUI Demo of hm run](./.github/res/tui-demo.mp4)
 
 **Features:**
 
-- **Pipelines as real code** — Python or TypeScript, not YAML
-- **Instant local runs** — `hm run` executes in Docker on your machine
-- **DAG-based parallelism** — independent chains run concurrently, automatically
-- **Layer caching** — Docker snapshots are reused across runs; only changed steps re-execute
-- **Typed toolchains** — first-class presets for Rust, Go, Python, Java, C++, React, and more
+- **Pipelines as real code** - Python or TypeScript, not YAML.
+- **Instant local runs** - `hm run` executes in Docker on your machine.
+- **DAG-based parallelism** - independent chains run concurrently.
+- **Layer caching** - Docker snapshots are reused across runs; only changed steps
+                      re-execute.
+- **Typed toolchains** - first-class presets for Rust, Go, Python, Java, C++,
+                         React, and more.
 
-<!-- TODO(marko): add asciinema -->
 
 ## Quick Start
 
@@ -100,11 +106,11 @@ export default pipelines;
 hm run ci
 ```
 
-If the repo declares only one pipeline, the slug is optional — just `hm run`.
+If the repo declares only one pipeline, the slug is optional - just `hm run`.
 
 ### Real-world example
 
-For production pipelines, use typed toolchains — they generate test, lint, and
+For production pipelines, use typed toolchains - they generate test, lint, and
 format steps from your project layout:
 
 <details open>
@@ -165,15 +171,9 @@ export default pipelines;
 Browse the [example projects](./examples) for idiomatic pipelines in Rust,
 Go, Python, Java, C++, React, Next.js, and more.
 
-## Community
-
-- **Discord** — [discord.gg/hm-dev](https://discord.gg/hm-dev)
-- **Slack** — [harmont-dev.slack.com](https://join.slack.com/t/harmont-dev/shared_invite/zt-3yt0tiv7r-qHm1O0p0nVh2GU~KKhUk9A)
-- **Website** — [harmont.dev](https://harmont.dev)
-
 ## Documentation
 
-For the full pipeline reference, rich examples, and more — see the
+For the full pipeline reference, richer examples, and more - see the
 [docs](https://docs.harmont.dev).
 
 ## License
@@ -186,8 +186,8 @@ The CLI is dual-licensed under either of
 ## Motivation
 
 >
-> The reason [I](https://github.com/markovejnovic) started this project is
-> because every other CI/CD tool I've used in my life has sucked.
+> The reason I started this project is because every other CI/CD tool I've used
+> in my life has sucked.
 >
 > I've worked at [Tesla](https://tesla.com), [Bun](https://bun.com),
 > [Mesa](https://mesa.dev) and never did I find a CI/CD system that was easy to
@@ -226,5 +226,5 @@ The CLI is dual-licensed under either of
 >   it between individual steps?
 
 Harmont's goal is to make all these questions obsolete. CI/CD _can_ be better,
-and that's what [Harmont](https://harmont.dev) is -- a CI/CD that wants to suck
-a lot less.
+and that's what [Harmont](https://harmont.dev) wants to be -- a CI/CD that
+sucks a lot less.
