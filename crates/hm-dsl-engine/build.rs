@@ -14,18 +14,17 @@ use std::process::Command;
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let workspace_root = manifest_dir.join("../..").canonicalize().unwrap();
-    let ts_src = workspace_root.join("dsls/harmont-ts/src");
+    let ts_src = manifest_dir.join("harmont-ts/src");
 
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed={}", ts_src.display());
 
-    let esbuild = find_esbuild(&workspace_root);
+    let esbuild = find_esbuild(&manifest_dir);
 
     let Some(esbuild) = esbuild else {
         eprintln!(
             "cargo:warning=esbuild not found; writing stub bundles. \
-             Run `npm ci` in dsls/harmont-ts/ for real bundles."
+             Run `npm ci` in crates/hm-dsl-engine/harmont-ts/ for real bundles."
         );
         fs::write(out_dir.join("harmont-index.mjs"), "// stub\nexport {};").unwrap();
         fs::write(
@@ -61,8 +60,8 @@ fn bundle(esbuild: &Path, entry: &Path, outfile: &Path) {
     assert!(status.success(), "esbuild failed for {}", entry.display());
 }
 
-fn find_esbuild(workspace_root: &Path) -> Option<PathBuf> {
-    let local = workspace_root.join("dsls/harmont-ts/node_modules/.bin/esbuild");
+fn find_esbuild(manifest_dir: &Path) -> Option<PathBuf> {
+    let local = manifest_dir.join("harmont-ts/node_modules/.bin/esbuild");
     if local.exists() {
         return Some(local);
     }

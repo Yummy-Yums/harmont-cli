@@ -1,6 +1,6 @@
 # harmont (TypeScript DSL)
 
-TypeScript pipeline DSL — equivalent of `dsls/harmont-py/`.
+TypeScript pipeline DSL — equivalent of `harmont-py/` (sibling directory).
 
 ## Commands
 

@@ -24,7 +24,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Install esbuild (for harmont-ts bundle)
-        working-directory: dsls/harmont-ts
+        working-directory: crates/hm-dsl-engine/harmont-ts
         run: npm ci
 
       - name: cargo build (all targets)
@@ -52,19 +52,19 @@ jobs:
           cache: pip
 
       - name: Install harmont + dev extras
-        working-directory: dsls/harmont-py
+        working-directory: crates/hm-dsl-engine/harmont-py
         run: pip install -e '.[dev]'
 
       - name: ruff check
-        working-directory: dsls/harmont-py
+        working-directory: crates/hm-dsl-engine/harmont-py
         run: ruff check .
 
       - name: ty
-        working-directory: dsls/harmont-py
+        working-directory: crates/hm-dsl-engine/harmont-py
         run: ty check harmont
 
       - name: pytest
-        working-directory: dsls/harmont-py
+        working-directory: crates/hm-dsl-engine/harmont-py
         run: |
           pytest -v \
             --deselect tests/test_gradle.py \
@@ -80,18 +80,18 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: dsls/harmont-ts/package-lock.json
+          cache-dependency-path: crates/hm-dsl-engine/harmont-ts/package-lock.json
 
       - name: Install
-        working-directory: dsls/harmont-ts
+        working-directory: crates/hm-dsl-engine/harmont-ts
         run: npm ci
 
       - name: Type check
-        working-directory: dsls/harmont-ts
+        working-directory: crates/hm-dsl-engine/harmont-ts
         run: npx tsc --noEmit
 
       - name: Test
-        working-directory: dsls/harmont-ts
+        working-directory: crates/hm-dsl-engine/harmont-ts
         run: npm test
 
   dogfood:
@@ -112,10 +112,10 @@ jobs:
         with:
           node-version: "23"
           cache: npm
-          cache-dependency-path: dsls/harmont-ts/package-lock.json
+          cache-dependency-path: crates/hm-dsl-engine/harmont-ts/package-lock.json
 
       - name: Install esbuild (for harmont-ts bundle)
-        working-directory: dsls/harmont-ts
+        working-directory: crates/hm-dsl-engine/harmont-ts
         run: npm ci
 
       - name: Build hm

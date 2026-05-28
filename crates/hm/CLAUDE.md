@@ -50,4 +50,4 @@ to system-installed runtimes:
   Prefers Bun, falls back to Node 22+.
 
 DSL source code (harmont-py, harmont-ts bundles) is compiled into the binary
-at build time. Build requires esbuild (`npm ci` in `dsls/harmont-ts/`).
+at build time. Build requires esbuild (`npm ci` in `crates/hm-dsl-engine/harmont-ts/`).

@@ -2,9 +2,9 @@ use std::path::Path;
 
 use include_dir::{Dir, include_dir};
 
-/// The `harmont` Python package source tree (`dsls/harmont-py/harmont/`).
+/// The `harmont` Python package source tree (`harmont-py/harmont/`).
 pub(crate) static HARMONT_PY: Dir<'_> =
-    include_dir!("$CARGO_MANIFEST_DIR/../../dsls/harmont-py/harmont");
+    include_dir!("$CARGO_MANIFEST_DIR/harmont-py/harmont");
 
 /// Pre-compiled ESM bundle of harmont-ts (main entry).
 pub(crate) const HARMONT_TS_INDEX: &str =
