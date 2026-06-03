@@ -30,6 +30,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from . import _decorator, py
+from ._bun import bun
 from ._cmake import cmake
 from ._composer import composer
 from ._dotnet import dotnet
@@ -263,6 +264,7 @@ __all__ = [
     "Step",
     "Target",
     "apt_base",
+    "bun",
     "cmake",
     "compose",
     "composer",
