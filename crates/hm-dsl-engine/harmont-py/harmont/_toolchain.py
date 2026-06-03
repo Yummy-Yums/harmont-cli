@@ -46,6 +46,15 @@ def node_install_cmd(version: str) -> str:
     )
 
 
+def bun_install_cmd(version: str | None = None) -> str:
+    """Bun install command. Installs to /usr/local/bin for PATH availability."""
+    version_arg = f' -s "bun-v{version}"' if version is not None else ""
+    return (
+        "curl -fsSL https://bun.sh/install | "
+        f"BUN_INSTALL=/usr/local bash{version_arg}"
+    )
+
+
 def make_install_chain(
     *,
     apt_packages: tuple[str, ...],
