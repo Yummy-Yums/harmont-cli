@@ -7,6 +7,7 @@ Minimal idiomatic starter projects, each wired up to a Harmont CI pipeline. Ever
 | [react](./react) | npm + Vite + Vitest + ESLint | `hm.npm(...)` |
 | [nextjs](./nextjs) | npm + Jest + ESLint | `hm.npm(...)` |
 | [typescript](./typescript) | tsc + Vitest + ESLint | `hm.npm(...)` |
+| [bun](./bun) | Bun + tsc + bun:test + ESLint | `hm.bun(...)` |
 | [rust](./rust) | cargo + clippy + rustfmt | `hm.rust(...)` |
 | [haskell](./haskell) | cabal + hlint + fourmolu | `hm.haskell(ghc="9.6.7")` |
 | [python-uv](./python-uv) | uv + pytest + ruff + mypy | `hm.python(...)` |
