@@ -36,10 +36,10 @@ def test_zig_actions_share_install():
 
 
 def test_zig_version_in_install_cmd():
-    z = hm.zig(path=".", version="0.13.0")
+    z = hm.zig(path=".", version="0.14.1")
     p = hm.pipeline(z.build())
     install = _step_by_substring(p, "ziglang.org")
-    assert "0.13.0" in install["cmd"]
+    assert "0.14.1" in install["cmd"]
 
 
 def test_zig_invalid_version_rejected():
@@ -59,6 +59,22 @@ def test_zig_bare_form_actions():
     cmds = _cmds(p)
     assert any("zig build" in c for c in cmds)
     assert any("zig fmt --check ." in c for c in cmds)
+
+
+def test_zig_old_version_uses_old_url_format():
+    """Versions < 0.14.1 use zig-linux-x86_64-{v} format."""
+    z = hm.zig(path=".", version="0.13.0")
+    p = hm.pipeline(z.build())
+    install = _step_by_substring(p, "ziglang.org")
+    assert "zig-linux-x86_64-0.13.0" in install["cmd"]
+
+
+def test_zig_new_version_uses_new_url_format():
+    """Versions >= 0.14.1 use zig-x86_64-linux-{v} format."""
+    z = hm.zig(path=".", version="0.14.1")
+    p = hm.pipeline(z.build())
+    install = _step_by_substring(p, "ziglang.org")
+    assert "zig-x86_64-linux-0.14.1" in install["cmd"]
 
 
 def test_zig_with_base_skips_apt():

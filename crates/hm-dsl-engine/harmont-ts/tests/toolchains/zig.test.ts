@@ -54,6 +54,18 @@ describe("zig project actions", () => {
   });
 });
 
+describe("zig URL format", () => {
+  it("uses old URL format for versions < 0.14.1", () => {
+    const tc = zig({ version: "0.13.0" });
+    expect(tc.install()._cmd).toContain("zig-linux-x86_64-0.13.0");
+  });
+
+  it("uses new URL format for versions >= 0.14.1", () => {
+    const tc = zig({ version: "0.14.1" });
+    expect(tc.install()._cmd).toContain("zig-x86_64-linux-0.14.1");
+  });
+});
+
 describe("zig install chain", () => {
   it("chain is: scratch → apt-base → zig-install", () => {
     const tc = zig();
