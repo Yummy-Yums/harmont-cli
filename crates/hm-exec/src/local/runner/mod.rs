@@ -1,9 +1,8 @@
 //! Static runner interface.
 //!
 //! This module replaces the old WASM plugin system with a static DI
-//! approach. Step executors implement [`StepRunner`]; output formatters
-//! implement [`OutputRenderer`]. A [`RunnerRegistry`] maps runner names
-//! to concrete implementations at startup.
+//! approach. Step executors implement [`StepRunner`]. A [`RunnerRegistry`]
+//! maps runner names to concrete implementations at startup.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -12,11 +11,11 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::Result;
-use hm_plugin_protocol::{BuildEvent, ExecutorInput, StepResult};
+use hm_plugin_protocol::{ExecutorInput, StepResult};
 use tokio_util::sync::CancellationToken;
 
-use crate::orchestrator::archive::ArchiveStore;
-use crate::orchestrator::events::EventBus;
+use crate::local::archive::ArchiveStore;
+use crate::local::events::EventBus;
 
 pub mod vm;
 
@@ -26,7 +25,7 @@ pub mod vm;
 /// system passed as opaque host memory. All fields are cheaply
 /// cloneable (`Arc` / `CancellationToken`).
 #[derive(Clone, Debug)]
-pub struct RunContext {
+pub struct StepContext {
     pub event_bus: Arc<EventBus>,
     pub archives: Arc<ArchiveStore>,
     pub cancel: CancellationToken,
@@ -53,18 +52,9 @@ pub trait StepRunner: Send + Sync + fmt::Debug {
     /// via [`StepResult::exit_code`].
     fn execute(
         &self,
-        ctx: &RunContext,
+        ctx: &StepContext,
         input: ExecutorInput,
     ) -> Pin<Box<dyn Future<Output = Result<StepResult>> + Send + '_>>;
-}
-
-/// Synchronous observer of [`BuildEvent`]s.
-///
-/// Implementations format events for human consumption (progress bars,
-/// coloured log lines) or machine consumption (JSON-lines).
-pub trait OutputRenderer: Send + fmt::Debug {
-    /// Called once per event in emission order.
-    fn on_event(&mut self, event: &BuildEvent);
 }
 
 /// Maps runner names to [`StepRunner`] implementations.
@@ -154,7 +144,7 @@ mod tests {
 
         fn execute(
             &self,
-            _ctx: &RunContext,
+            _ctx: &StepContext,
             _input: ExecutorInput,
         ) -> Pin<Box<dyn Future<Output = Result<StepResult>> + Send + '_>> {
             Box::pin(async {

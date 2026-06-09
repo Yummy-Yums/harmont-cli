@@ -1,3 +1,7 @@
+//! Layered (project/user/env) configuration and credential storage for the
+//! `hm` CLI. Shared between the `hm` binary and `hm-plugin-cloud` so both sides
+//! resolve config and credentials through one source of truth.
+
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
@@ -7,7 +11,15 @@ use figment::{
 };
 use serde::{Deserialize, Serialize};
 
+pub mod creds;
+
 pub const DEFAULT_API_URL: &str = "https://api.harmont.dev";
+
+/// Default execution backend for `hm run` when no `--backend`/`--cloud` flag
+/// is given.
+fn default_backend() -> String {
+    "docker".to_owned()
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CloudConfig {
@@ -39,12 +51,24 @@ impl Default for Preferences {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Config {
+    #[serde(default = "default_backend")]
+    pub backend: String,
     #[serde(default)]
     pub cloud: CloudConfig,
     #[serde(default)]
     pub preferences: Preferences,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            backend: default_backend(),
+            cloud: CloudConfig::default(),
+            preferences: Preferences::default(),
+        }
+    }
 }
 
 /// Backward-compat: resolve the legacy Harmont config dir (`~/.harmont/`).
@@ -146,6 +170,7 @@ mod tests {
     #[test]
     fn default_config_values() {
         let cfg = Config::default();
+        assert_eq!(cfg.backend, "docker");
         assert_eq!(cfg.cloud.api_url, DEFAULT_API_URL);
         assert!(cfg.cloud.org.is_none());
         assert_eq!(cfg.preferences.format, "human");
@@ -227,11 +252,33 @@ org = "project-org"
         assert_eq!(cfg.preferences.format, "json");
     }
 
+    #[test]
+    fn backend_defaults_docker_and_parses_and_layers() {
+        // default
+        assert_eq!(Config::default().backend, "docker");
+
+        // user file sets cloud; project file sets docker -> project wins.
+        let mut user_file = tempfile::NamedTempFile::new().unwrap();
+        user_file.write_all(br#"backend = "cloud""#).unwrap();
+
+        let mut project_file = tempfile::NamedTempFile::new().unwrap();
+        project_file.write_all(br#"backend = "docker""#).unwrap();
+
+        let cfg =
+            Config::load_from_paths(Some(user_file.path()), Some(project_file.path())).unwrap();
+        assert_eq!(cfg.backend, "docker");
+
+        // user file alone parses "cloud".
+        let cfg_user = Config::load_from_paths(Some(user_file.path()), None).unwrap();
+        assert_eq!(cfg_user.backend, "cloud");
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn save_and_reload_roundtrip() {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("config.toml");
         let cfg = Config {
+            backend: default_backend(),
             cloud: CloudConfig {
                 org: Some("saved-org".into()),
                 api_url: DEFAULT_API_URL.to_owned(),

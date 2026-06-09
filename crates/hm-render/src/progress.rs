@@ -18,7 +18,7 @@ use tracing::{Span, info_span};
 use tracing_indicatif::span_ext::IndicatifSpanExt;
 use uuid::Uuid;
 
-use crate::runner::OutputRenderer;
+use crate::OutputRenderer;
 
 fn styled(text: &str, style: Style, color: bool) -> String {
     if color {
@@ -324,6 +324,16 @@ where
 
                 if let Some(root) = &self.root_span {
                     root.pb_inc(1);
+                }
+            }
+
+            BuildEvent::BuildAccepted { build, watch_url } => {
+                if let Some(url) = watch_url {
+                    let n = build
+                        .number
+                        .map(|n| format!("#{n} "))
+                        .unwrap_or_default();
+                    let _ = writeln!(self.out, "build {n}\u{2192} {url}");
                 }
             }
 

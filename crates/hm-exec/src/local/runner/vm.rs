@@ -18,8 +18,8 @@ use hm_vm::types::OutputSink;
 use hm_vm::{Action, CachingPolicy, HmVm, ImageSource, SnapshotId};
 use uuid::Uuid;
 
-use super::{RunContext, StepRunner};
-use crate::orchestrator::events::EventBus;
+use super::{StepContext, StepRunner};
+use crate::local::events::EventBus;
 
 /// Step runner that executes pipeline steps inside lightweight VMs
 /// via the [`HmVm`] orchestrator.
@@ -43,7 +43,7 @@ impl StepRunner for VmRunner {
 
     fn execute(
         &self,
-        ctx: &RunContext,
+        ctx: &StepContext,
         input: ExecutorInput,
     ) -> Pin<Box<dyn Future<Output = Result<StepResult>> + Send + '_>> {
         let ctx = ctx.clone();
@@ -53,7 +53,7 @@ impl StepRunner for VmRunner {
 }
 
 #[tracing::instrument(skip(vm, ctx), fields(step_key = %input.step.key))]
-async fn run_step_vm(vm: &HmVm, ctx: &RunContext, input: ExecutorInput) -> Result<StepResult> {
+async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Result<StepResult> {
     let policy = match &input.cache_lookup {
         CacheDecision::Hit { tag } | CacheDecision::MissBuildAs { tag } => {
             CachingPolicy::Cache { key: tag.0.clone() }

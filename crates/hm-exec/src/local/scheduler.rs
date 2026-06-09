@@ -31,7 +31,8 @@ use daggy::petgraph::algo::toposort;
 use daggy::{Dag, NodeIndex, Walker};
 use futures::future::{BoxFuture, FutureExt, join_all};
 
-use anyhow::{Context, Result};
+use anyhow::Context as _;
+use hm_plugin_protocol::events::BuildRef;
 use hm_plugin_protocol::{
     ArchiveId, BuildEvent, CacheDecision, ExecutorInput, PlanSummary, SnapshotRef, StepResult,
 };
@@ -39,51 +40,92 @@ use uuid::Uuid;
 
 use hm_pipeline_ir::{EdgeKind, PipelineGraph, Transition};
 
-use crate::error::HmError;
-use crate::orchestrator::source::build_archive_bytes;
-use crate::runner::{OutputRenderer, RunContext, RunnerRegistry};
+use crate::local::runner::{RunnerRegistry, StepContext};
+use crate::local::source::build_archive_bytes;
+use crate::{BuildOutcome, BuildStatus, StepResultSummary, StepStatus};
 
 use super::archive::ArchiveStore;
 use super::cache;
 use super::events::EventBus;
 use tokio_util::sync::CancellationToken;
 
+/// What one finished step contributes to the scheduler's bookkeeping:
+/// the snapshot it produced (for downstream container lineage) plus a
+/// terminal [`StepResultSummary`] for the run's [`BuildOutcome`].
 #[derive(Clone)]
 struct StepOutcome {
     exit_code: i32,
     snapshot: Option<SnapshotRef>,
+    /// `None` only for steps short-circuited because a predecessor failed
+    /// or the build was cancelled before they could run.
+    summary: Option<StepResultSummary>,
 }
 
 type StepFuture = futures::future::Shared<BoxFuture<'static, StepOutcome>>;
 
-/// Entry point: run a parsed pipeline locally end-to-end. Returns
-/// the overall exit code (0 = success, [`crate::error::EXIT_BUILD_FAILED`]
-/// when any step exited non-zero).
+/// Entry point: run a parsed pipeline locally end-to-end.
+///
+/// Emits every [`BuildEvent`] to `tx` (via an internal broadcast bus that
+/// the many concurrent step tasks publish to) and returns a typed
+/// [`BuildOutcome`]. Non-zero step exit codes are reflected in the outcome's
+/// [`BuildStatus`], not surfaced as an `Err`.
+///
+/// `cancel` is supplied by the caller (the CLI owns Ctrl-C handling); the
+/// scheduler observes it cooperatively and never installs a signal handler.
 ///
 /// # Errors
 /// Returns an error if the source archive cannot be built or any
 /// scheduler-level failure occurs. Non-zero step exit codes are
-/// surfaced via the returned `i32`, not as an Err.
-pub async fn run(
+/// surfaced via the returned [`BuildOutcome`], not as an `Err`.
+pub(crate) async fn run(
     graph: PipelineGraph,
     repo_root: PathBuf,
+    pipeline_slug: String,
     parallelism: usize,
     runner_registry: Arc<RunnerRegistry>,
-    renderer: Box<dyn OutputRenderer>,
-) -> Result<i32> {
+    tx: tokio::sync::mpsc::Sender<BuildEvent>,
+    cancel: CancellationToken,
+) -> crate::Result<BuildOutcome> {
     // Set up per-run state.
     let bus = EventBus::new();
     let archives = Arc::new(ArchiveStore::new());
-    let cancel = CancellationToken::new();
-    let _ctrlc = super::signal::install_ctrlc(cancel.clone());
-    // _ctrlc dropped at end of `run`; runtime tear-down kills the task.
+
+    // Forward every bus event onto the caller's mpsc channel. The bus is a
+    // lossy broadcast that the concurrent step tasks emit into; the mpsc
+    // forward gives the renderer backpressure. If the renderer goes away
+    // (`tx` closed) we stop forwarding; a lagging subscriber drops events
+    // but the build keeps running.
+    let forward = {
+        let mut sub = bus.subscribe();
+        let tx = tx.clone();
+        tokio::spawn(async move {
+            use tokio::sync::broadcast::error::RecvError;
+            loop {
+                match sub.recv().await {
+                    Ok(ev) => {
+                        // Renderer went away: stop forwarding.
+                        if tx.send(ev).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(RecvError::Closed) => break,
+                    // Lossy broadcast: a slow renderer drops events but the
+                    // build keeps running. Skip the gap and keep forwarding.
+                    Err(RecvError::Lagged(_)) => {}
+                }
+            }
+        })
+    };
+
     let run_id = Uuid::new_v4();
 
     // Build the source archive once.
-    let archive_bytes = build_archive_bytes(&repo_root).context("build source archive")?;
+    let archive_bytes = build_archive_bytes(&repo_root)
+        .context("build source archive")
+        .map_err(|e| crate::BackendError::Local(format!("{e:#}")))?;
     let archive_id = archives.register(archive_bytes);
 
-    let run_ctx = RunContext {
+    let run_ctx = StepContext {
         event_bus: bus.clone(),
         archives: archives.clone(),
         cancel: cancel.clone(),
@@ -93,16 +135,13 @@ pub async fn run(
 
     let semaphore = Arc::new(tokio::sync::Semaphore::new(parallelism));
 
-    // Spawn the output subscriber. Dispatches every BuildEvent to the
-    // pre-constructed renderer.
-    let sink_handle = super::output_subscriber::spawn(bus.clone(), renderer);
-
     let dag = graph.dag();
     let pipeline_timeout = graph.timeout_seconds();
     let chain_info = compute_chain_info(dag);
 
-    let order = toposort(dag.graph(), None)
-        .map_err(|c| anyhow::anyhow!("pipeline graph has a cycle at {:?}", c.node_id()))?;
+    let order = toposort(dag.graph(), None).map_err(|c| {
+        crate::BackendError::Local(format!("pipeline graph has a cycle at {:?}", c.node_id()))
+    })?;
 
     let started_at = chrono::Utc::now();
     bus.emit(BuildEvent::BuildStart {
@@ -127,6 +166,7 @@ pub async fn run(
             .collect();
 
         let transition = dag[n].clone();
+        let node_key = transition.step.key.clone();
         let chain_id = chain_info.node_chain_id[&n];
         let chain_pos = chain_info.node_chain_pos[&n];
         let parent_key: Option<String> = dag
@@ -147,9 +187,21 @@ pub async fn run(
 
             // Early exit if any predecessor failed or the build was cancelled.
             if cancel.is_cancelled() || pred_outcomes.iter().any(|o| o.exit_code != 0) {
+                let status = if cancel.is_cancelled() {
+                    StepStatus::Canceled
+                } else {
+                    StepStatus::Skipped
+                };
                 return StepOutcome {
                     exit_code: 0,
                     snapshot: None,
+                    summary: Some(StepResultSummary {
+                        step_id: Uuid::new_v4(),
+                        key: node_key,
+                        status,
+                        exit_code: None,
+                        duration_ms: 0,
+                    }),
                 };
             }
 
@@ -188,6 +240,13 @@ pub async fn run(
                     StepOutcome {
                         exit_code: 1,
                         snapshot: None,
+                        summary: Some(StepResultSummary {
+                            step_id: Uuid::new_v4(),
+                            key: node_key,
+                            status: StepStatus::Failed,
+                            exit_code: Some(1),
+                            duration_ms: 0,
+                        }),
                     }
                 }
             }
@@ -225,11 +284,18 @@ pub async fn run(
         }
     };
     let outcomes: Vec<StepOutcome> = join_all(pending).await;
+    let any_failed = outcomes.iter().any(|o| o.exit_code != 0);
 
-    let overall = if timed_out || outcomes.iter().any(|o| o.exit_code != 0) {
-        crate::error::EXIT_BUILD_FAILED
+    // Derive the overall verdict. Timeout wins (it also fired cancellation);
+    // then cancellation; then any failed step; otherwise the build passed.
+    let status = if timed_out {
+        BuildStatus::TimedOut
+    } else if cancel.is_cancelled() {
+        BuildStatus::Canceled
+    } else if any_failed {
+        BuildStatus::Failed
     } else {
-        0
+        BuildStatus::Passed
     };
 
     if timed_out {
@@ -239,16 +305,35 @@ pub async fn run(
         );
     }
 
+    let steps: Vec<StepResultSummary> = outcomes.iter().filter_map(|o| o.summary.clone()).collect();
+
     let dur = started_total.elapsed().as_millis() as u64;
 
     bus.emit(BuildEvent::BuildEnd {
-        exit_code: overall,
+        exit_code: status.exit_code(),
         duration_ms: dur,
     });
 
-    let _ = tokio::time::timeout(std::time::Duration::from_secs(2), sink_handle).await;
+    // Drop every remaining bus sender (the template `StepContext` still holds
+    // one) so the forwarder observes `Closed` and drains, then await it so the
+    // renderer sees `BuildEnd` before we return.
+    drop(run_ctx);
+    drop(bus);
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(2), forward).await;
 
-    Ok(overall)
+    Ok(BuildOutcome {
+        build: BuildRef {
+            run_id,
+            number: None,
+            org: None,
+            pipeline: pipeline_slug,
+        },
+        status,
+        steps,
+        started_at,
+        finished_at: chrono::Utc::now(),
+        watch_url: None,
+    })
 }
 
 /// Execute a single step, returning its outcome (exit code + snapshot).
@@ -269,11 +354,11 @@ async fn execute_step(
     parent_key: Option<String>,
     archive_id: ArchiveId,
     run_id: Uuid,
-    run_ctx: RunContext,
+    run_ctx: StepContext,
     runner_registry: Arc<RunnerRegistry>,
     bus: Arc<EventBus>,
     cancel: CancellationToken,
-) -> Result<StepOutcome> {
+) -> anyhow::Result<StepOutcome> {
     let step_wire = transition.step;
     let step_key = step_wire.key.clone();
     let display_name = step_wire.label.clone().unwrap_or_else(|| {
@@ -338,20 +423,24 @@ async fn execute_step(
         image: input.step.image.clone(),
     });
 
+    let available: Vec<String> = runner_registry
+        .runner_names()
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
     let runner = runner_registry
         .resolve(input.step.runner.as_deref())
-        .ok_or_else(|| HmError::UnknownRunner {
-            step_key: input.step.key.clone(),
-            runner: runner_name.clone(),
-            available: runner_registry
-                .runner_names()
-                .into_iter()
-                .map(str::to_owned)
-                .collect(),
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "step '{}' requested runner '{}', but no runner provides it (available: {:?})",
+                input.step.key,
+                runner_name,
+                available,
+            )
         })?;
 
     let exec = runner.execute(&run_ctx, input);
-    let result: Result<StepResult> = match step_timeout_secs {
+    let result: anyhow::Result<StepResult> = match step_timeout_secs {
         Some(secs) if secs > 0 => {
             match tokio::time::timeout(Duration::from_secs(u64::from(secs)), exec).await {
                 Ok(r) => r,
@@ -359,10 +448,11 @@ async fn execute_step(
                     // Per-step wall-clock budget exceeded. Emit a step-end with the
                     // conventional timeout exit code (124), fail the chain, and
                     // cancel siblings — same shape as a non-zero exit below.
+                    let dur_ms = started.elapsed().as_millis() as u64;
                     bus.emit(BuildEvent::StepEnd {
                         step_id,
                         exit_code: 124,
-                        duration_ms: started.elapsed().as_millis() as u64,
+                        duration_ms: dur_ms,
                         snapshot: None,
                     });
                     bus.emit(BuildEvent::ChainFailed {
@@ -377,6 +467,13 @@ async fn execute_step(
                     return Ok(StepOutcome {
                         exit_code: 124,
                         snapshot: None,
+                        summary: Some(StepResultSummary {
+                            step_id,
+                            key: step_key.clone(),
+                            status: StepStatus::TimedOut,
+                            exit_code: Some(124),
+                            duration_ms: dur_ms,
+                        }),
                     });
                 }
             }
@@ -404,9 +501,23 @@ async fn execute_step(
                 });
                 cancel.cancel();
             }
+            let status = match sr.exit_code {
+                0 => StepStatus::Passed,
+                // The Docker runner returns 130 when a step is cut short by
+                // cooperative cancellation (Ctrl-C / sibling failure).
+                130 => StepStatus::Canceled,
+                _ => StepStatus::Failed,
+            };
             Ok(StepOutcome {
                 exit_code: sr.exit_code,
                 snapshot: sr.committed_snapshot,
+                summary: Some(StepResultSummary {
+                    step_id,
+                    key: step_key.clone(),
+                    status,
+                    exit_code: Some(sr.exit_code),
+                    duration_ms: dur_ms,
+                }),
             })
         }
         Err(e) => {
@@ -427,6 +538,15 @@ struct ChainInfo {
     chain_count: usize,
     node_chain_id: HashMap<NodeIndex, usize>,
     node_chain_pos: HashMap<NodeIndex, usize>,
+}
+
+/// Return the number of linear `BuildsIn` chains in the pipeline DAG.
+///
+/// This is the authoritative implementation shared by the scheduler and the
+/// [`crate::request`] plan-summarizer. See [`compute_chain_info`] for the
+/// full per-node mapping used during a live run.
+pub(crate) fn chain_count(dag: &Dag<Transition, EdgeKind>) -> usize {
+    compute_chain_info(dag).chain_count
 }
 
 /// Walk the DAG and assign each node to a linear chain. A chain starts
