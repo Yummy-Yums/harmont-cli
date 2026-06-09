@@ -84,6 +84,26 @@ fn init_force_overwrites_existing() {
 }
 
 #[test]
+fn init_skips_pipeline_when_one_exists() {
+    let dir = tempfile::tempdir().unwrap();
+    let hm_dir = dir.path().join(".hm");
+    std::fs::create_dir(&hm_dir).unwrap();
+    std::fs::write(hm_dir.join("pipeline.py"), "# existing").unwrap();
+
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stderr(contains("pipeline already exists"));
+
+    let content = std::fs::read_to_string(hm_dir.join("pipeline.py")).unwrap();
+    assert_eq!(
+        content, "# existing",
+        "pipeline.py should be left untouched"
+    );
+}
+
+#[test]
 fn init_unknown_template_rejected_by_clap() {
     let dir = tempfile::tempdir().unwrap();
     hm().args(["init", "--template", "cobol", "--dir"])
