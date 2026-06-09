@@ -97,6 +97,29 @@ fn init_force_overwrites_existing() {
 }
 
 #[test]
+fn init_force_replaces_existing_pipeline() {
+    let dir = tempfile::tempdir().unwrap();
+    let harmont = dir.path().join(".hm");
+    std::fs::create_dir(&harmont).unwrap();
+    std::fs::write(harmont.join("pipeline.py"), "# old pipeline").unwrap();
+
+    hm().args(["init", "--template", "rust", "--force", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+
+    let content = std::fs::read_to_string(harmont.join("pipeline.py")).unwrap();
+    assert!(
+        content.contains("hm.rust"),
+        "force should overwrite with new template content"
+    );
+    assert!(
+        !content.contains("# old pipeline"),
+        "old content should be gone"
+    );
+}
+
+#[test]
 fn init_skips_pipeline_when_one_exists() {
     let dir = tempfile::tempdir().unwrap();
     let hm_dir = dir.path().join(".hm");
