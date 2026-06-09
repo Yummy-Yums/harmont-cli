@@ -7,6 +7,7 @@ use crate::cli::init::{InitArgs, TemplateKind};
 
 const SKILL_VALIDATE_CI: &str = include_str!("init_templates/skill_validate_ci.md");
 const SKILL_WRITE_PIPELINE: &str = include_str!("init_templates/skill_write_pipeline.md");
+const SKILL_CONVERT_GHA: &str = include_str!("init_templates/skill_convert_gha.md");
 
 struct Template {
     label: &'static str,
@@ -116,6 +117,7 @@ fn write_skills(dir: &Path) -> Result<()> {
     let skills: &[(&str, &str)] = &[
         ("validate-ci", SKILL_VALIDATE_CI),
         ("write-pipeline", SKILL_WRITE_PIPELINE),
+        ("convert-gha", SKILL_CONVERT_GHA),
     ];
     for (slug, content) in skills {
         let skill_dir = dir.join(format!(".claude/skills/{slug}"));
@@ -147,6 +149,22 @@ fn ensure_gitignore_entry(dir: &Path, entry: &str) -> Result<()> {
     Ok(())
 }
 
+fn has_github_workflows(dir: &Path) -> bool {
+    let workflows = dir.join(".github/workflows");
+    workflows.is_dir()
+        && std::fs::read_dir(&workflows)
+            .map(|entries| {
+                entries.filter_map(Result::ok).any(|e| {
+                    let p = e.path();
+                    matches!(
+                        p.extension().and_then(|x| x.to_str()),
+                        Some("yml" | "yaml")
+                    )
+                })
+            })
+            .unwrap_or(false)
+}
+
 /// # Errors
 ///
 /// Returns an error if the target directory is unwritable.
@@ -169,6 +187,13 @@ pub async fn handle(args: InitArgs) -> Result<()> {
         tracing::info!(
             "created .hm/{} ({dsl} pipeline, template: {kind:?})",
             tmpl.filename
+        );
+    }
+
+    if has_github_workflows(&args.dir) {
+        tracing::info!(
+            "detected GitHub Actions workflows in .github/workflows/\n  \
+             hint: use the `convert-gha` Claude Code skill to migrate them to Harmont"
         );
     }
 
