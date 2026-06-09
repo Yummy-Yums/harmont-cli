@@ -1,6 +1,7 @@
 use std::path::Path;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
+use hm_dsl_engine::detect;
 
 use crate::cli::init::{InitArgs, TemplateKind};
 
@@ -84,16 +85,20 @@ fn prompt_skills() -> Result<bool> {
     Ok(install)
 }
 
-fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<()> {
+fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<bool> {
     let harmont_dir = dir.join(".hm");
-    if harmont_dir.exists() && !force {
-        bail!(
-            ".hm/ already exists in {}\n  \
+    let already_has_pipeline = detect::has_pipeline_files(dir);
+
+    if harmont_dir.exists() && already_has_pipeline && !force {
+        tracing::warn!(
+            "pipeline already exists in {}/.hm/ — skipping template\n  \
              hint: use --force to overwrite",
             dir.display()
         );
+        return Ok(false);
     }
-    if harmont_dir.exists() {
+
+    if harmont_dir.exists() && force {
         std::fs::remove_dir_all(&harmont_dir)
             .with_context(|| format!("removing {}", harmont_dir.display()))?;
     }
@@ -103,7 +108,7 @@ fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<()> {
     std::fs::write(&dest, tmpl.content).with_context(|| format!("writing {}", dest.display()))?;
     ensure_gitignore_entry(&harmont_dir, "node_modules/")?;
     ensure_gitignore_entry(&harmont_dir, "__pycache__/")?;
-    Ok(())
+    Ok(true)
 }
 
 fn write_skills(dir: &Path) -> Result<()> {
@@ -148,16 +153,18 @@ pub async fn handle(args: InitArgs) -> Result<()> {
     };
     let tmpl = kind.meta();
 
-    write_template(&args.dir, &tmpl, args.force)?;
+    let wrote_pipeline = write_template(&args.dir, &tmpl, args.force)?;
 
-    let dsl = match kind {
-        TemplateKind::Nextjs | TemplateKind::Js | TemplateKind::Zig => "TypeScript",
-        _ => "Python",
-    };
-    tracing::info!(
-        "created .hm/{} ({dsl} pipeline, template: {kind:?})",
-        tmpl.filename
-    );
+    if wrote_pipeline {
+        let dsl = match kind {
+            TemplateKind::Nextjs | TemplateKind::Js | TemplateKind::Zig => "TypeScript",
+            _ => "Python",
+        };
+        tracing::info!(
+            "created .hm/{} ({dsl} pipeline, template: {kind:?})",
+            tmpl.filename
+        );
+    }
 
     if interactive && prompt_skills()? {
         write_skills(&args.dir)?;
