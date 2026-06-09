@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
-import os
-import tempfile
 
-import pytest
-
-from harmont._detect import DetectedToolchain, detect, detect_from_lockfiles, detect_from_package_json
+from harmont._detect import (
+    DetectedToolchain,
+    detect,
+    detect_from_lockfiles,
+    detect_from_package_json,
+)
 
 
 class TestDetectFromPackageJson:
@@ -16,38 +17,55 @@ class TestDetectFromPackageJson:
         assert detect_from_package_json({}) == DetectedToolchain()
 
     def test_engines_node(self) -> None:
-        assert detect_from_package_json({"engines": {"node": ">=18"}}) == DetectedToolchain(runtime="node")
+        pkg = {"engines": {"node": ">=18"}}
+        assert detect_from_package_json(pkg) == DetectedToolchain(runtime="node")
 
     def test_engines_bun(self) -> None:
-        assert detect_from_package_json({"engines": {"bun": ">=1.0"}}) == DetectedToolchain(runtime="bun", pm="bun")
+        pkg = {"engines": {"bun": ">=1.0"}}
+        assert detect_from_package_json(pkg) == DetectedToolchain(
+            runtime="bun", pm="bun"
+        )
 
     def test_engines_deno(self) -> None:
-        assert detect_from_package_json({"engines": {"deno": ">=2.0"}}) == DetectedToolchain(runtime="deno")
+        pkg = {"engines": {"deno": ">=2.0"}}
+        assert detect_from_package_json(pkg) == DetectedToolchain(runtime="deno")
 
     def test_package_manager_pnpm(self) -> None:
-        assert detect_from_package_json({"packageManager": "pnpm@8.15.4"}) == DetectedToolchain(pm="pnpm")
+        pkg = {"packageManager": "pnpm@8.15.4"}
+        assert detect_from_package_json(pkg) == DetectedToolchain(pm="pnpm")
 
     def test_package_manager_bun(self) -> None:
-        assert detect_from_package_json({"packageManager": "bun@1.1.0"}) == DetectedToolchain(pm="bun")
+        pkg = {"packageManager": "bun@1.1.0"}
+        assert detect_from_package_json(pkg) == DetectedToolchain(pm="bun")
 
     def test_package_manager_npm(self) -> None:
-        assert detect_from_package_json({"packageManager": "npm@10.2.4"}) == DetectedToolchain(pm="npm")
+        pkg = {"packageManager": "npm@10.2.4"}
+        assert detect_from_package_json(pkg) == DetectedToolchain(pm="npm")
 
     def test_package_manager_yarn_classic(self) -> None:
-        assert detect_from_package_json({"packageManager": "yarn@1.22.22"}) == DetectedToolchain(pm="yarn-classic")
+        pkg = {"packageManager": "yarn@1.22.22"}
+        assert detect_from_package_json(pkg) == DetectedToolchain(
+            pm="yarn-classic"
+        )
 
     def test_package_manager_yarn_berry(self) -> None:
-        assert detect_from_package_json({"packageManager": "yarn@4.0.0"}) == DetectedToolchain(pm="yarn-berry")
+        pkg = {"packageManager": "yarn@4.0.0"}
+        assert detect_from_package_json(pkg) == DetectedToolchain(
+            pm="yarn-berry"
+        )
 
     def test_ignores_unknown_package_manager(self) -> None:
-        assert detect_from_package_json({"packageManager": "unknown@1.0"}) == DetectedToolchain()
+        pkg = {"packageManager": "unknown@1.0"}
+        assert detect_from_package_json(pkg) == DetectedToolchain()
 
     def test_engines_bun_overrides_package_manager(self) -> None:
-        result = detect_from_package_json({"engines": {"bun": ">=1.0"}, "packageManager": "pnpm@8"})
+        pkg = {"engines": {"bun": ">=1.0"}, "packageManager": "pnpm@8"}
+        result = detect_from_package_json(pkg)
         assert result == DetectedToolchain(runtime="bun", pm="bun")
 
     def test_engines_node_plus_package_manager_pnpm(self) -> None:
-        result = detect_from_package_json({"engines": {"node": ">=18"}, "packageManager": "pnpm@8"})
+        pkg = {"engines": {"node": ">=18"}, "packageManager": "pnpm@8"}
+        result = detect_from_package_json(pkg)
         assert result == DetectedToolchain(runtime="node", pm="pnpm")
 
 
@@ -56,25 +74,32 @@ class TestDetectFromLockfiles:
         assert detect_from_lockfiles([]) == DetectedToolchain()
 
     def test_bun_lock(self) -> None:
-        assert detect_from_lockfiles(["bun.lock"]) == DetectedToolchain(pm="bun", runtime="bun")
+        result = detect_from_lockfiles(["bun.lock"])
+        assert result == DetectedToolchain(pm="bun", runtime="bun")
 
     def test_bun_lockb(self) -> None:
-        assert detect_from_lockfiles(["bun.lockb"]) == DetectedToolchain(pm="bun", runtime="bun")
+        result = detect_from_lockfiles(["bun.lockb"])
+        assert result == DetectedToolchain(pm="bun", runtime="bun")
 
     def test_pnpm_lock(self) -> None:
-        assert detect_from_lockfiles(["pnpm-lock.yaml"]) == DetectedToolchain(pm="pnpm")
+        result = detect_from_lockfiles(["pnpm-lock.yaml"])
+        assert result == DetectedToolchain(pm="pnpm")
 
     def test_deno_lock(self) -> None:
-        assert detect_from_lockfiles(["deno.lock"]) == DetectedToolchain(runtime="deno")
+        result = detect_from_lockfiles(["deno.lock"])
+        assert result == DetectedToolchain(runtime="deno")
 
     def test_package_lock(self) -> None:
-        assert detect_from_lockfiles(["package-lock.json"]) == DetectedToolchain(pm="npm")
+        result = detect_from_lockfiles(["package-lock.json"])
+        assert result == DetectedToolchain(pm="npm")
 
     def test_yarn_lock(self) -> None:
-        assert detect_from_lockfiles(["yarn.lock"]) == DetectedToolchain(pm="yarn-classic")
+        result = detect_from_lockfiles(["yarn.lock"])
+        assert result == DetectedToolchain(pm="yarn-classic")
 
     def test_bun_beats_package_lock(self) -> None:
-        assert detect_from_lockfiles(["package-lock.json", "bun.lock"]) == DetectedToolchain(pm="bun", runtime="bun")
+        result = detect_from_lockfiles(["package-lock.json", "bun.lock"])
+        assert result == DetectedToolchain(pm="bun", runtime="bun")
 
 
 class TestDetect:
@@ -82,29 +107,37 @@ class TestDetect:
         assert detect(str(tmp_path)) == DetectedToolchain()
 
     def test_engines_bun(self, tmp_path) -> None:
-        (tmp_path / "package.json").write_text(json.dumps({"engines": {"bun": ">=1.0"}}))
-        assert detect(str(tmp_path)) == DetectedToolchain(runtime="bun", pm="bun")
+        pkg = json.dumps({"engines": {"bun": ">=1.0"}})
+        (tmp_path / "package.json").write_text(pkg)
+        assert detect(str(tmp_path)) == DetectedToolchain(
+            runtime="bun", pm="bun"
+        )
 
     def test_lockfile(self, tmp_path) -> None:
         (tmp_path / "pnpm-lock.yaml").touch()
         assert detect(str(tmp_path)) == DetectedToolchain(pm="pnpm")
 
     def test_package_json_pm_beats_lockfile_pm(self, tmp_path) -> None:
-        (tmp_path / "package.json").write_text(json.dumps({"packageManager": "pnpm@8"}))
+        pkg = json.dumps({"packageManager": "pnpm@8"})
+        (tmp_path / "package.json").write_text(pkg)
         (tmp_path / "bun.lock").touch()
         result = detect(str(tmp_path))
         assert result.pm == "pnpm"
         assert result.runtime == "bun"
 
     def test_merges_runtime_and_pm(self, tmp_path) -> None:
-        (tmp_path / "package.json").write_text(json.dumps({"engines": {"node": ">=18"}}))
+        pkg = json.dumps({"engines": {"node": ">=18"}})
+        (tmp_path / "package.json").write_text(pkg)
         (tmp_path / "pnpm-lock.yaml").touch()
-        assert detect(str(tmp_path)) == DetectedToolchain(runtime="node", pm="pnpm")
+        assert detect(str(tmp_path)) == DetectedToolchain(
+            runtime="node", pm="pnpm"
+        )
 
     def test_nonexistent_path(self, tmp_path) -> None:
         assert detect(str(tmp_path / "does-not-exist")) == DetectedToolchain()
 
     def test_yarn_berry_from_package_manager(self, tmp_path) -> None:
-        (tmp_path / "package.json").write_text(json.dumps({"packageManager": "yarn@4.5.0"}))
+        pkg = json.dumps({"packageManager": "yarn@4.5.0"})
+        (tmp_path / "package.json").write_text(pkg)
         (tmp_path / "yarn.lock").touch()
         assert detect(str(tmp_path)) == DetectedToolchain(pm="yarn-berry")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 from dataclasses import dataclass
@@ -79,10 +80,8 @@ def detect(path: str) -> DetectedToolchain:
         pass
 
     from_lock = DetectedToolchain()
-    try:
+    with contextlib.suppress(OSError):
         from_lock = detect_from_lockfiles(os.listdir(path))
-    except OSError:
-        pass
 
     return DetectedToolchain(
         runtime=from_pkg.runtime if from_pkg.runtime is not None else from_lock.runtime,
