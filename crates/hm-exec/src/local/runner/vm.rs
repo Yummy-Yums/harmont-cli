@@ -8,7 +8,6 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::{Context, Result};
 use hm_plugin_protocol::{
@@ -103,10 +102,7 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
         cmd: input.step.cmd.clone(),
         env,
         working_dir: input.workdir.clone(),
-        timeout: input
-            .step
-            .timeout_seconds
-            .map(|s| Duration::from_secs(u64::from(s))),
+        timeout: None,
         inject,
     };
 
@@ -115,10 +111,13 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
         bus: Arc::clone(&ctx.event_bus),
     };
 
-    let result = vm
-        .execute(action, policy, &sink)
-        .await
-        .context("vm execute failed")?;
+    let result = tokio::select! {
+        r = vm.execute(action, policy, &sink) => r,
+        () = ctx.cancel.cancelled() => {
+            anyhow::bail!("step cancelled (build timeout or sibling failure)")
+        }
+    }
+    .context("vm execute failed")?;
 
     if result.cached {
         ctx.event_bus.emit(BuildEvent::StepCacheHit {
