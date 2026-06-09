@@ -200,7 +200,10 @@ impl SubprocessTsEngine {
                 remove_nm: created_local_nm,
             })
         } else {
-            debug!(?local_pkg, "npm-installed @harmont/hm found — skipping symlink");
+            debug!(
+                ?local_pkg,
+                "npm-installed @harmont/hm found — skipping symlink"
+            );
             None
         };
 

@@ -10,7 +10,7 @@
 #[allow(clippy::struct_excessive_bools)]
 pub struct Capabilities {
     pub honors_parallelism: bool,
-    pub is_observer: bool,        // submits + watches (cloud) vs executes (local)
+    pub is_observer: bool, // submits + watches (cloud) vs executes (local)
     pub reports_cache_hits: bool,
     pub supports_no_watch: bool,
     pub provides_watch_url: bool,

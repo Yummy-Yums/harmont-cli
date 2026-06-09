@@ -14,9 +14,9 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use futures_util::StreamExt;
 use harmont_cloud::{
+    HarmontClient,
     logs::{LogEvent, StreamKind},
     models::{build_is_terminal, job_is_terminal},
-    HarmontClient,
 };
 use hm_plugin_protocol::events::{BuildEvent, PlanSummary, StdStream};
 use uuid::Uuid;

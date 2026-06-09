@@ -23,7 +23,11 @@ pub struct RunArgs {
     #[arg(short, long, default_value = "main")]
     pub branch: String,
     /// Commit SHA to record on the build.
-    #[arg(short, long, default_value = "0000000000000000000000000000000000000000")]
+    #[arg(
+        short,
+        long,
+        default_value = "0000000000000000000000000000000000000000"
+    )]
     pub commit: String,
     /// Build message.
     #[arg(short, long)]

@@ -23,8 +23,14 @@ fn init_rust_creates_pipeline_py() {
     assert!(pipeline.exists(), "expected {}", pipeline.display());
 
     let content = std::fs::read_to_string(&pipeline).unwrap();
-    assert!(content.contains("hm.rust"), "expected rust toolchain import");
-    assert!(content.contains("@hm.pipeline"), "expected pipeline decorator");
+    assert!(
+        content.contains("hm.rust"),
+        "expected rust toolchain import"
+    );
+    assert!(
+        content.contains("@hm.pipeline"),
+        "expected pipeline decorator"
+    );
 }
 
 #[test]
@@ -40,7 +46,10 @@ fn init_zig_creates_pipeline_ts() {
 
     let content = std::fs::read_to_string(&pipeline).unwrap();
     assert!(content.contains("zig"), "expected zig toolchain import");
-    assert!(content.contains("export default"), "expected default export");
+    assert!(
+        content.contains("export default"),
+        "expected default export"
+    );
 }
 
 #[test]
@@ -137,7 +146,10 @@ fn init_python_templates_roundtrip_render() {
         let v: serde_json::Value = serde_json::from_slice(&out)
             .unwrap_or_else(|e| panic!("template {slug}: invalid JSON: {e}"));
         assert_eq!(v["version"], "0", "template {slug}: expected v0 IR");
-        assert!(v["graph"].is_object(), "template {slug}: expected graph object");
+        assert!(
+            v["graph"].is_object(),
+            "template {slug}: expected graph object"
+        );
     }
 }
 
@@ -166,6 +178,9 @@ fn init_ts_templates_roundtrip_render() {
         let v: serde_json::Value = serde_json::from_slice(&out)
             .unwrap_or_else(|e| panic!("template {slug}: invalid JSON: {e}"));
         assert_eq!(v["version"], "0", "template {slug}: expected v0 IR");
-        assert!(v["graph"].is_object(), "template {slug}: expected graph object");
+        assert!(
+            v["graph"].is_object(),
+            "template {slug}: expected graph object"
+        );
     }
 }

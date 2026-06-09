@@ -96,7 +96,9 @@ async fn poll_claim(client: &HarmontClient, nonce: &str) -> Result<String> {
     loop {
         match client.claim_token(nonce).await {
             Ok(token) => return Ok(token),
-            Err(HarmontError::Api { status: 400, code, .. }) if code == "cli_code_invalid" => {
+            Err(HarmontError::Api {
+                status: 400, code, ..
+            }) if code == "cli_code_invalid" => {
                 if std::time::Instant::now() >= deadline {
                     bail!(
                         "timed out waiting for the browser to authorize this login (60s).\n  \

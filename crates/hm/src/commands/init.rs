@@ -89,8 +89,7 @@ fn write_template(dir: &Path, tmpl: &Template, force: bool) -> Result<()> {
     std::fs::create_dir_all(&harmont_dir)
         .with_context(|| format!("creating {}", harmont_dir.display()))?;
     let dest = harmont_dir.join(tmpl.filename);
-    std::fs::write(&dest, tmpl.content)
-        .with_context(|| format!("writing {}", dest.display()))?;
+    std::fs::write(&dest, tmpl.content).with_context(|| format!("writing {}", dest.display()))?;
     ensure_gitignore_entry(&harmont_dir, "node_modules/")?;
     ensure_gitignore_entry(&harmont_dir, "__pycache__/")?;
     Ok(())
@@ -132,7 +131,10 @@ pub async fn handle(args: InitArgs) -> Result<()> {
         TemplateKind::Nextjs | TemplateKind::Js | TemplateKind::Zig => "TypeScript",
         _ => "Python",
     };
-    tracing::info!("created .hm/{} ({dsl} pipeline, template: {kind:?})", tmpl.filename);
+    tracing::info!(
+        "created .hm/{} ({dsl} pipeline, template: {kind:?})",
+        tmpl.filename
+    );
 
     tracing::info!("next step: run `hm run` to execute your pipeline locally");
     Ok(())

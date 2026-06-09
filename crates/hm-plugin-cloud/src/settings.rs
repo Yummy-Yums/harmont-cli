@@ -48,7 +48,13 @@ pub fn client() -> Result<(HarmontClient, ResolvedCtx)> {
     let token = hm_config::creds::cloud_token(&api)
         .context("not logged in — run `hm cloud login` or set HARMONT_API_TOKEN")?;
     let client = HarmontClient::with_base_url(token, &api);
-    Ok((client, ResolvedCtx { api, org: cfg.cloud.org }))
+    Ok((
+        client,
+        ResolvedCtx {
+            api,
+            org: cfg.cloud.org,
+        },
+    ))
 }
 
 /// An anonymous client (for the login flow) + the resolved API base.

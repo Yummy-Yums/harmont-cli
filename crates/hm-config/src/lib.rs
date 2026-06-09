@@ -117,10 +117,7 @@ impl Config {
     /// # Errors
     ///
     /// Returns an error if figment extraction fails (malformed TOML, type mismatches).
-    pub fn load_from_paths(
-        user_path: Option<&Path>,
-        project_path: Option<&Path>,
-    ) -> Result<Self> {
+    pub fn load_from_paths(user_path: Option<&Path>, project_path: Option<&Path>) -> Result<Self> {
         let mut figment = Figment::new().merge(Serialized::defaults(Self::default()));
 
         if let Some(p) = user_path {

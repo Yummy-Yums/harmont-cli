@@ -99,7 +99,13 @@ impl BackendHandle {
     /// Split into the event stream (move into a renderer task) and control.
     #[must_use]
     pub fn into_parts(self) -> (EventStream, Control) {
-        (self.events, Control { cancel: self.cancel, outcome: self.outcome })
+        (
+            self.events,
+            Control {
+                cancel: self.cancel,
+                outcome: self.outcome,
+            },
+        )
     }
 }
 

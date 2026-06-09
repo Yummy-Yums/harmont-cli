@@ -2,7 +2,7 @@
 //! to Harmont Cloud, and watch it to completion. The server schedules and runs;
 //! this backend is an *observer* (see [`Capabilities::cloud`]).
 
-use harmont_cloud::{builds::NewBuild, HarmontClient, HarmontError};
+use harmont_cloud::{HarmontClient, HarmontError, builds::NewBuild};
 use hm_plugin_protocol::events::{BuildEvent, BuildRef};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;

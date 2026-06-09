@@ -38,7 +38,13 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     let backend_name = args
         .backend
         .clone()
-        .or_else(|| if args.cloud { Some("cloud".to_string()) } else { None })
+        .or_else(|| {
+            if args.cloud {
+                Some("cloud".to_string())
+            } else {
+                None
+            }
+        })
         .unwrap_or_else(|| ctx.config.backend.clone());
 
     let backend: Box<dyn hm_exec::ExecutionBackend> = if backend_name == "cloud" {
@@ -183,8 +189,8 @@ async fn render_pipeline(
         None => std::env::current_dir().context("cannot determine current directory")?,
     };
 
-    let lang = detect::detect_language(&repo_root)
-        .map_err(|e| HmError::DslEngine(format!("{e:#}")))?;
+    let lang =
+        detect::detect_language(&repo_root).map_err(|e| HmError::DslEngine(format!("{e:#}")))?;
     let engine =
         hm_dsl_engine::engine_for(lang).map_err(|e| HmError::DslEngine(format!("{e:#}")))?;
 

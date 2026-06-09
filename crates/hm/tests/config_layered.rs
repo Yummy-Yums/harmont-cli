@@ -17,11 +17,9 @@ fn project_overrides_user() {
     let project_path = project_dir.path().join("config.toml");
     fs::write(&project_path, b"[cloud]\norg = \"project-org\"\n").unwrap();
 
-    let config = harmont_cli::config::Config::load_from_paths(
-        Some(&user_path),
-        Some(&project_path),
-    )
-    .unwrap();
+    let config =
+        harmont_cli::config::Config::load_from_paths(Some(&user_path), Some(&project_path))
+            .unwrap();
 
     assert_eq!(config.cloud.org.as_deref(), Some("project-org"));
     assert_eq!(config.cloud.api_url, "https://user.api");
@@ -43,11 +41,7 @@ fn project_only_no_user() {
     let project_path = project_dir.path().join("config.toml");
     fs::write(&project_path, b"[cloud]\norg = \"proj\"\n").unwrap();
 
-    let config = harmont_cli::config::Config::load_from_paths(
-        None,
-        Some(&project_path),
-    )
-    .unwrap();
+    let config = harmont_cli::config::Config::load_from_paths(None, Some(&project_path)).unwrap();
 
     assert_eq!(config.cloud.org.as_deref(), Some("proj"));
     assert_eq!(config.cloud.api_url, harmont_cli::config::DEFAULT_API_URL);
@@ -59,11 +53,7 @@ fn file_values_survive_without_env_override() {
     let user_path = user_dir.path().join("config.toml");
     fs::write(&user_path, b"[cloud]\norg = \"file-org\"\n").unwrap();
 
-    let config = harmont_cli::config::Config::load_from_paths(
-        Some(&user_path),
-        None,
-    )
-    .unwrap();
+    let config = harmont_cli::config::Config::load_from_paths(Some(&user_path), None).unwrap();
     assert_eq!(config.cloud.org.as_deref(), Some("file-org"));
 }
 
@@ -71,14 +61,14 @@ fn file_values_survive_without_env_override() {
 fn unknown_keys_are_ignored() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("config.toml");
-    fs::write(&path, b"[cloud]\norg = \"ok\"\nunknown_key = 42\n\n[unknown_section]\nfoo = true\n").unwrap();
-
-    // Figment with serde by default ignores unknown fields.
-    let config = harmont_cli::config::Config::load_from_paths(
-        Some(&path),
-        None,
+    fs::write(
+        &path,
+        b"[cloud]\norg = \"ok\"\nunknown_key = 42\n\n[unknown_section]\nfoo = true\n",
     )
     .unwrap();
+
+    // Figment with serde by default ignores unknown fields.
+    let config = harmont_cli::config::Config::load_from_paths(Some(&path), None).unwrap();
     assert_eq!(config.cloud.org.as_deref(), Some("ok"));
 }
 
@@ -88,10 +78,7 @@ fn malformed_toml_returns_error() {
     let path = dir.path().join("config.toml");
     fs::write(&path, b"this is not [valid toml\n").unwrap();
 
-    let result = harmont_cli::config::Config::load_from_paths(
-        Some(&path),
-        None,
-    );
+    let result = harmont_cli::config::Config::load_from_paths(Some(&path), None);
     assert!(result.is_err());
 }
 
@@ -102,10 +89,7 @@ fn type_mismatch_returns_error() {
     // auto_watch should be bool, not string
     fs::write(&path, b"[preferences]\nauto_watch = \"not-a-bool\"\n").unwrap();
 
-    let result = harmont_cli::config::Config::load_from_paths(
-        Some(&path),
-        None,
-    );
+    let result = harmont_cli::config::Config::load_from_paths(Some(&path), None);
     assert!(result.is_err());
 }
 
@@ -114,7 +98,11 @@ fn load_resolves_project_root() {
     let project_dir = tempdir().unwrap();
     let harmont_dir = project_dir.path().join(".hm");
     fs::create_dir_all(&harmont_dir).unwrap();
-    fs::write(harmont_dir.join("config.toml"), b"[cloud]\norg = \"proj-root\"\n").unwrap();
+    fs::write(
+        harmont_dir.join("config.toml"),
+        b"[cloud]\norg = \"proj-root\"\n",
+    )
+    .unwrap();
 
     let found = hm_util::dirs::find_project_root(project_dir.path());
     assert_eq!(found, Some(project_dir.path().to_path_buf()));

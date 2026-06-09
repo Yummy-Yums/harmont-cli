@@ -329,10 +329,7 @@ where
 
             BuildEvent::BuildAccepted { build, watch_url } => {
                 if let Some(url) = watch_url {
-                    let n = build
-                        .number
-                        .map(|n| format!("#{n} "))
-                        .unwrap_or_default();
+                    let n = build.number.map(|n| format!("#{n} ")).unwrap_or_default();
                     let _ = writeln!(self.out, "build {n}\u{2192} {url}");
                 }
             }

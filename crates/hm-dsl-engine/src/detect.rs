@@ -130,10 +130,7 @@ mod tests {
         // Do NOT create .hm/
         let err = detect_language(tmp.path()).unwrap_err();
         let msg = err.to_string();
-        assert!(
-            msg.contains("no .hm/ directory"),
-            "unexpected error: {msg}"
-        );
+        assert!(msg.contains("no .hm/ directory"), "unexpected error: {msg}");
     }
 
     #[test]

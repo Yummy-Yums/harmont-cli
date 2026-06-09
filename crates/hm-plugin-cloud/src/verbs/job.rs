@@ -130,4 +130,3 @@ async fn log_cmd(
     let _ = driver.await;
     Ok(())
 }
-
