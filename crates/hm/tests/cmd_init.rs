@@ -104,6 +104,22 @@ fn init_skips_pipeline_when_one_exists() {
 }
 
 #[test]
+fn init_writes_pipeline_when_hm_dir_exists_but_empty() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join(".hm")).unwrap();
+
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success();
+
+    assert!(
+        dir.path().join(".hm/pipeline.py").exists(),
+        "pipeline should be created even though .hm/ existed"
+    );
+}
+
+#[test]
 fn init_unknown_template_rejected_by_clap() {
     let dir = tempfile::tempdir().unwrap();
     hm().args(["init", "--template", "cobol", "--dir"])
