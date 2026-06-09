@@ -298,14 +298,9 @@ fn init_noninteractive_skips_convert_gha_skill() {
 
 #[test]
 fn skill_validate_ci_content_is_well_formed() {
-    let content = include_str!(
-        "../src/commands/init_templates/skill_validate_ci.md"
-    );
+    let content = include_str!("../src/commands/init_templates/skill_validate_ci.md");
     assert!(!content.is_empty(), "skill template must not be empty");
-    assert!(
-        content.contains("hm run"),
-        "skill must reference `hm run`"
-    );
+    assert!(content.contains("hm run"), "skill must reference `hm run`");
     assert!(
         content.contains("## When to use"),
         "skill must have 'When to use' section"
@@ -322,9 +317,7 @@ fn skill_validate_ci_content_is_well_formed() {
 
 #[test]
 fn skill_write_pipeline_content_is_well_formed() {
-    let content = include_str!(
-        "../src/commands/init_templates/skill_write_pipeline.md"
-    );
+    let content = include_str!("../src/commands/init_templates/skill_write_pipeline.md");
     assert!(!content.is_empty(), "skill template must not be empty");
     assert!(
         content.contains("docs.harmont.dev"),

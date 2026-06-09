@@ -2,7 +2,8 @@
     clippy::unwrap_used,
     clippy::expect_used,
     clippy::print_stderr,
-    clippy::needless_raw_string_hashes
+    clippy::needless_raw_string_hashes,
+    clippy::too_many_lines
 )]
 
 #[tokio::test]
@@ -77,8 +78,14 @@ export default pipelines;
         .unwrap();
     let ts_ir: serde_json::Value = serde_json::from_str(&ts_json).unwrap();
 
-    eprintln!("Python IR:\n{}", serde_json::to_string_pretty(&py_ir).unwrap());
-    eprintln!("TypeScript IR:\n{}", serde_json::to_string_pretty(&ts_ir).unwrap());
+    eprintln!(
+        "Python IR:\n{}",
+        serde_json::to_string_pretty(&py_ir).unwrap()
+    );
+    eprintln!(
+        "TypeScript IR:\n{}",
+        serde_json::to_string_pretty(&ts_ir).unwrap()
+    );
 
     // Extract nodes from both IRs
     let py_nodes = py_ir["graph"]["nodes"]

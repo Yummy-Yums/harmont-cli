@@ -125,8 +125,7 @@ fn write_skills(dir: &Path) -> Result<()> {
         std::fs::create_dir_all(&skill_dir)
             .with_context(|| format!("creating {}", skill_dir.display()))?;
         let dest = skill_dir.join("SKILL.md");
-        std::fs::write(&dest, content)
-            .with_context(|| format!("writing {}", dest.display()))?;
+        std::fs::write(&dest, content).with_context(|| format!("writing {}", dest.display()))?;
         tracing::info!("installed Claude Code skill: .claude/skills/{slug}/SKILL.md");
     }
     Ok(())

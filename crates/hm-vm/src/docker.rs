@@ -309,15 +309,20 @@ impl Vm for DockerVm {
 
     #[instrument(skip(self))]
     async fn snapshot(&mut self, label: &str) -> Result<SnapshotId> {
-        let parts: Vec<&str> = label.splitn(2, ':').collect();
-        let (repo, tag) = match parts.as_slice() {
-            [r, v] => (*r, *v),
-            _ => (label, "latest"),
-        };
         let cid = self
             .container_id
             .as_deref()
             .context("container already destroyed")?;
+        let parts: Vec<&str> = label.splitn(2, ':').collect();
+        // A bare label (no explicit `repo:tag`) is an ephemeral, uncached
+        // snapshot. Tag it with the unique container id rather than a shared
+        // `:latest`: concurrent sibling leaf steps off the same parent all
+        // commit ephemeral snapshots, and racing to write the same
+        // `ephemeral:latest` image fails the loser of the race in dockerd.
+        let (repo, tag) = match parts.as_slice() {
+            [r, v] => (*r, *v),
+            _ => (label, cid),
+        };
         let opts = CommitContainerOptions {
             container: cid,
             repo,

@@ -453,24 +453,14 @@ def test_golden_hash_cross_sdk_chained_pipeline():
         env={},
     )
 
-    parent_policy_res = "forever-" + _sha256_hex(
-        "apt-get update && apt-get install -y gcc" + NUL
-    )
+    parent_policy_res = "forever-" + _sha256_hex("apt-get update && apt-get install -y gcc" + NUL)
     parent_key = _sha256_hex(
         "acme" + NUL + "ci" + NUL + "setup" + NUL + "scratch" + NUL + parent_policy_res
     )
 
     child_policy_res = "forever-" + _sha256_hex("gcc -o main main.c" + NUL)
     child_key = _sha256_hex(
-        "acme"
-        + NUL
-        + "ci"
-        + NUL
-        + "compile"
-        + NUL
-        + parent_key
-        + NUL
-        + child_policy_res
+        "acme" + NUL + "ci" + NUL + "compile" + NUL + parent_key + NUL + child_policy_res
     )
 
     assert out["nodes"][0]["step"]["cache"]["key"] == parent_key

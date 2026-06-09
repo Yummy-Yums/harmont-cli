@@ -179,7 +179,9 @@ def _make_rust_project(
     lock_path = f"{path}/Cargo.lock" if path != "." else "Cargo.lock"
     toml_glob = f"{path}/**/Cargo.toml" if path != "." else "**/Cargo.toml"
     rs_glob = f"{path}/**/*.rs" if path != "." else "**/*.rs"
-    warmup_cache = cache if cache is not None else CacheOnChange(paths=(lock_path, toml_glob, rs_glob))
+    warmup_cache = (
+        cache if cache is not None else CacheOnChange(paths=(lock_path, toml_glob, rs_glob))
+    )
 
     warm = tc._emit(  # noqa: SLF001
         "cargo build --workspace --tests --locked",

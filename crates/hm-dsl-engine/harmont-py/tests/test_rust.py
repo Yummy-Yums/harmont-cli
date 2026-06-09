@@ -179,9 +179,7 @@ class TestRustProject:
 
     def test_warmup_implicit_cache_dot_path(self):
         proj = hm.rust.project(path=".")
-        assert proj.warmup.cache == CacheOnChange(
-            paths=("Cargo.lock", "**/Cargo.toml", "**/*.rs")
-        )
+        assert proj.warmup.cache == CacheOnChange(paths=("Cargo.lock", "**/Cargo.toml", "**/*.rs"))
 
     def test_warmup_cache_override(self):
         custom = CacheOnChange(paths=("Cargo.toml",))

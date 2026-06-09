@@ -72,9 +72,17 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
         )
     };
 
-    // Only inject workspace for root steps (no parent snapshot).
-    // Child steps inherit workspace from the parent via COW snapshot.
-    let (inject, _temp_guard) = if input.parent_snapshot.is_none() {
+    // Inject the current workspace on every executing step, overlaying it
+    // onto the system state inherited from the parent snapshot (apt packages,
+    // installed runtimes, `node_modules`, …). Injecting only at the chain root
+    // is wrong: root steps such as `apt_base` are `CacheForever`, so their
+    // snapshots freeze the source tree captured at first build and every COW
+    // descendant inherits that stale tree — source edits never reach leaf
+    // steps. A true cache hit short-circuits inside `HmVm::execute` before
+    // inject runs, so this overlay only happens when a step actually executes;
+    // the overlay (Docker PUT-archive) adds/overwrites files without deleting
+    // the inherited system state.
+    let (inject, _temp_guard) = {
         let archive_bytes = ctx
             .archives
             .get_bytes(input.workspace_archive_id)
@@ -83,8 +91,6 @@ async fn run_step_vm(vm: &HmVm, ctx: &StepContext, input: ExecutorInput) -> Resu
             extract_archive_to_tempdir(&archive_bytes).context("extracting workspace archive")?;
         let path = dir.path().to_path_buf();
         (Some(path), Some(dir))
-    } else {
-        (None, None)
     };
 
     // Baseline env for shell operation inside VMs.
