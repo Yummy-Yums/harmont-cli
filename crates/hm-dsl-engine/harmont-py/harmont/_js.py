@@ -95,10 +95,7 @@ def _validate_version(runtime: Runtime, version: str) -> None:
             )
             raise ValueError(msg)
     elif not _SEMVER_RE.match(version):
-        msg = (
-            f"hm.js: invalid version {version!r}\n"
-            '  → use a semver version like "1.2" or "1.2.0"'
-        )
+        msg = f'hm.js: invalid version {version!r}\n  → use a semver version like "1.2" or "1.2.0"'
         raise ValueError(msg)
 
 
@@ -264,9 +261,7 @@ class _JsEntry:
             >>> proj = hm.js.project(path="web", runtime="bun")
             >>> hm.pipeline([proj.run("test"), proj.run("lint")])
         """
-        return _make_js(
-            path=path, pm=pm, runtime=runtime, version=version, image=image, base=base
-        )
+        return _make_js(path=path, pm=pm, runtime=runtime, version=version, image=image, base=base)
 
 
 js: _JsEntry = _JsEntry()

@@ -42,10 +42,7 @@ def parse_duration(value: str | int | timedelta) -> int:
     elif isinstance(value, str):
         seconds = _parse_str(value)
     else:
-        msg = (
-            f"hm: timeout duration must be a str, int, or timedelta — "
-            f"got {type(value).__name__}"
-        )
+        msg = f"hm: timeout duration must be a str, int, or timedelta — got {type(value).__name__}"
         raise TypeError(msg)
 
     if seconds <= 0:
@@ -66,6 +63,4 @@ def _parse_str(text: str) -> int:
             f"(units: h, m, s)"
         )
         raise ValueError(msg)
-    return sum(
-        int(n) * _UNIT_SECONDS[unit] for n, unit in _SEGMENT_RE.findall(stripped)
-    )
+    return sum(int(n) * _UNIT_SECONDS[unit] for n, unit in _SEGMENT_RE.findall(stripped))
