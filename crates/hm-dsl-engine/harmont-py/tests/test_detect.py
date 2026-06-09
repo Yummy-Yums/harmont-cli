@@ -22,9 +22,7 @@ class TestDetectFromPackageJson:
 
     def test_engines_bun(self) -> None:
         pkg = {"engines": {"bun": ">=1.0"}}
-        assert detect_from_package_json(pkg) == DetectedToolchain(
-            runtime="bun", pm="bun"
-        )
+        assert detect_from_package_json(pkg) == DetectedToolchain(runtime="bun", pm="bun")
 
     def test_engines_deno(self) -> None:
         pkg = {"engines": {"deno": ">=2.0"}}
@@ -44,15 +42,11 @@ class TestDetectFromPackageJson:
 
     def test_package_manager_yarn_classic(self) -> None:
         pkg = {"packageManager": "yarn@1.22.22"}
-        assert detect_from_package_json(pkg) == DetectedToolchain(
-            pm="yarn-classic"
-        )
+        assert detect_from_package_json(pkg) == DetectedToolchain(pm="yarn-classic")
 
     def test_package_manager_yarn_berry(self) -> None:
         pkg = {"packageManager": "yarn@4.0.0"}
-        assert detect_from_package_json(pkg) == DetectedToolchain(
-            pm="yarn-berry"
-        )
+        assert detect_from_package_json(pkg) == DetectedToolchain(pm="yarn-berry")
 
     def test_ignores_unknown_package_manager(self) -> None:
         pkg = {"packageManager": "unknown@1.0"}
@@ -109,9 +103,7 @@ class TestDetect:
     def test_engines_bun(self, tmp_path) -> None:
         pkg = json.dumps({"engines": {"bun": ">=1.0"}})
         (tmp_path / "package.json").write_text(pkg)
-        assert detect(str(tmp_path)) == DetectedToolchain(
-            runtime="bun", pm="bun"
-        )
+        assert detect(str(tmp_path)) == DetectedToolchain(runtime="bun", pm="bun")
 
     def test_lockfile(self, tmp_path) -> None:
         (tmp_path / "pnpm-lock.yaml").touch()
@@ -129,9 +121,7 @@ class TestDetect:
         pkg = json.dumps({"engines": {"node": ">=18"}})
         (tmp_path / "package.json").write_text(pkg)
         (tmp_path / "pnpm-lock.yaml").touch()
-        assert detect(str(tmp_path)) == DetectedToolchain(
-            runtime="node", pm="pnpm"
-        )
+        assert detect(str(tmp_path)) == DetectedToolchain(runtime="node", pm="pnpm")
 
     def test_nonexistent_path(self, tmp_path) -> None:
         assert detect(str(tmp_path / "does-not-exist")) == DetectedToolchain()
