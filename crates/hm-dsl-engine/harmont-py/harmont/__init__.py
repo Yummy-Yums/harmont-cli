@@ -29,12 +29,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from . import _decorator, py
-from ._bun import bun
 from ._cmake import CMakeProject, CMakeToolchain, cmake
 from ._elixir import elixir
 from ._envelope import dump_registry_json
 from ._go import go
-from ._npm import npm
+from ._js import JsProject, js, ts
 from ._pipeline import pipeline as _pipeline_factory
 from ._pipeline import pipeline_to_json
 from ._python import python
@@ -253,12 +252,12 @@ __all__ = [
     "CacheOnChange",
     "CachePolicy",
     "CacheTTL",
+    "JsProject",
     "Pipeline",
     "RustProject",
     "Step",
     "Target",
     "apt_base",
-    "bun",
     "cmake",
     "compose",
     "dump_registry_json",
@@ -266,7 +265,7 @@ __all__ = [
     "forever",
     "go",
     "group",
-    "npm",
+    "js",
     "on_change",
     "pipeline",
     "pipeline_to_json",
@@ -280,6 +279,7 @@ __all__ = [
     "scratch",
     "sh",
     "target",
+    "ts",
     "ttl",
     "wait",
     "zig",
