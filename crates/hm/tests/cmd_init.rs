@@ -53,15 +53,28 @@ fn init_zig_creates_pipeline_ts() {
 }
 
 #[test]
-fn init_fails_on_existing_harmont_dir() {
+fn init_existing_hm_dir_no_pipeline_succeeds() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir(dir.path().join(".hm")).unwrap();
 
     hm().args(["init", "--template", "rust", "--dir"])
         .arg(dir.path())
         .assert()
-        .failure()
-        .stderr(contains(".hm"));
+        .success();
+}
+
+#[test]
+fn init_existing_pipeline_without_force_warns_and_succeeds() {
+    let dir = tempfile::tempdir().unwrap();
+    let harmont = dir.path().join(".hm");
+    std::fs::create_dir(&harmont).unwrap();
+    std::fs::write(harmont.join("pipeline.py"), "# old").unwrap();
+
+    hm().args(["init", "--template", "rust", "--dir"])
+        .arg(dir.path())
+        .assert()
+        .success()
+        .stderr(contains("pipeline already exists"));
 }
 
 #[test]
