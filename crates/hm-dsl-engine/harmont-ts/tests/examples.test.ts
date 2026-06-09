@@ -20,7 +20,7 @@ function exampleDirs(): string[] {
 
 const examples = exampleDirs();
 
-describe("examples render to v0 IR", () => {
+describe.skipIf(examples.length === 0)("examples render to v0 IR", () => {
   beforeEach(() => {
     clearTargetCache();
   });
