@@ -25,7 +25,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use daggy::petgraph::algo::toposort;
 use daggy::{Dag, NodeIndex, Walker};
@@ -98,6 +98,7 @@ pub async fn run(
     let sink_handle = super::output_subscriber::spawn(bus.clone(), renderer);
 
     let dag = graph.dag();
+    let pipeline_timeout = graph.timeout_seconds();
     let chain_info = compute_chain_info(dag);
 
     let order = toposort(dag.graph(), None)
@@ -198,12 +199,45 @@ pub async fn run(
         done.insert(n, fut);
     }
 
-    let outcomes: Vec<StepOutcome> = join_all(done.into_values()).await;
-    let overall = if outcomes.iter().any(|o| o.exit_code != 0) {
+    // The step futures are Shared + already spawned, so we can await the join
+    // set twice: once racing the deadline (to fire cancellation promptly), then
+    // again to drain every step to completion before tearing down.
+    let pending: Vec<StepFuture> = done.into_values().collect();
+    let timed_out = match pipeline_timeout {
+        Some(secs) if secs > 0 => {
+            let join_fut = join_all(pending.clone());
+            tokio::pin!(join_fut);
+            tokio::select! {
+                _ = &mut join_fut => false,
+                () = tokio::time::sleep(Duration::from_secs(u64::from(secs))) => {
+                    // Whole-build budget blown: signal every step to stop. New
+                    // steps short-circuit via the `cancel.is_cancelled()` check
+                    // in the spawn closure; in-flight runners observe
+                    // run_ctx.cancel.
+                    cancel.cancel();
+                    true
+                }
+            }
+        }
+        _ => {
+            let _ = join_all(pending.clone()).await;
+            false
+        }
+    };
+    let outcomes: Vec<StepOutcome> = join_all(pending).await;
+
+    let overall = if timed_out || outcomes.iter().any(|o| o.exit_code != 0) {
         crate::error::EXIT_BUILD_FAILED
     } else {
         0
     };
+
+    if timed_out {
+        tracing::warn!(
+            timeout_seconds = pipeline_timeout,
+            "pipeline wall-clock timeout exceeded; build failed"
+        );
+    }
 
     let dur = started_total.elapsed().as_millis() as u64;
 
@@ -293,6 +327,10 @@ async fn execute_step(
         .unwrap_or("vm")
         .to_owned();
 
+    // Capture the per-step wall-clock budget before `input` is moved
+    // into the runner below.
+    let step_timeout_secs = input.step.timeout_seconds;
+
     let started = Instant::now();
     bus.emit(BuildEvent::StepStart {
         step_id,
@@ -312,7 +350,39 @@ async fn execute_step(
                 .collect(),
         })?;
 
-    let result: Result<StepResult> = runner.execute(&run_ctx, input).await;
+    let exec = runner.execute(&run_ctx, input);
+    let result: Result<StepResult> = match step_timeout_secs {
+        Some(secs) if secs > 0 => {
+            match tokio::time::timeout(Duration::from_secs(u64::from(secs)), exec).await {
+                Ok(r) => r,
+                Err(_elapsed) => {
+                    // Per-step wall-clock budget exceeded. Emit a step-end with the
+                    // conventional timeout exit code (124), fail the chain, and
+                    // cancel siblings — same shape as a non-zero exit below.
+                    bus.emit(BuildEvent::StepEnd {
+                        step_id,
+                        exit_code: 124,
+                        duration_ms: started.elapsed().as_millis() as u64,
+                        snapshot: None,
+                    });
+                    bus.emit(BuildEvent::ChainFailed {
+                        chain_idx: chain_id,
+                        failed_step_id: step_id,
+                        failed_step_key: step_key.clone(),
+                        exit_code: 124,
+                        message: format!("step '{step_key}' timed out after {secs}s"),
+                        ts: chrono::Utc::now(),
+                    });
+                    cancel.cancel();
+                    return Ok(StepOutcome {
+                        exit_code: 124,
+                        snapshot: None,
+                    });
+                }
+            }
+        }
+        _ => exec.await,
+    };
 
     let dur_ms = started.elapsed().as_millis() as u64;
     match result {
