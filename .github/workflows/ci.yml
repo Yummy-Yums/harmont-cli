@@ -129,3 +129,4 @@ jobs:
         with:
           pipeline: ci
           hm-path: ./target/debug/hm
+          cache: 'false'
