@@ -54,7 +54,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
     let cloud_creds = if backend_name == "cloud" {
         let api_url = ctx.config.cloud.api_url.clone();
         let token = hm_config::creds::cloud_token(&api_url).context(
-            "`hm run --backend cloud` requires authentication — run `hm cloud login` or set HARMONT_API_TOKEN",
+            "`hm run --backend cloud` requires authentication — run `hm cloud login` or set HM_API_TOKEN",
         )?;
         let org = args
             .org
@@ -87,8 +87,7 @@ pub async fn handle(args: RunArgs, ctx: RunContext) -> Result<i32> {
             let client = harmont_cloud::HarmontClient::with_base_url(token, &api_url);
             // The watch link must point at the dashboard (app.) host, not the
             // API host — a link built from `api_url` lands on raw JSON.
-            let app_url =
-                hm_config::app_url(&api_url, std::env::var("HARMONT_APP_URL").ok().as_deref());
+            let app_url = hm_config::app_url(&api_url, std::env::var("HM_APP_URL").ok().as_deref());
             Box::new(hm_exec::CloudBackend::new(client, api_url, app_url, org))
         } else {
             // Local execution on a hm-vm VmBackend (docker).
@@ -304,7 +303,7 @@ fn explain(err: &hm_exec::BackendError) -> String {
     match err {
         E::Unauthorized => "\
 error[auth_required]: not authenticated
-  fix    run `hm cloud login` (or set HARMONT_API_TOKEN)
+  fix    run `hm cloud login` (or set HM_API_TOKEN)
   docs   https://harmont.dev/docs/errors/auth_required"
             .to_string(),
         E::Rejected { code, message } => format!(
@@ -322,7 +321,7 @@ error[not_found]: {what}
         E::Transport(m) => format!(
             "\
 error[network]: {m}
-  fix    check your connection and the API URL (HARMONT_API_URL)
+  fix    check your connection and the API URL (HM_API_URL)
   docs   https://harmont.dev/docs/errors/network"
         ),
         E::LogStream(m) => format!(

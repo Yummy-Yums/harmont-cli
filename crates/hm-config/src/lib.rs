@@ -43,7 +43,7 @@ pub enum Backend {
 /// the host first.
 ///
 /// Priority:
-/// 1. `override_url` (e.g. the `HARMONT_APP_URL` env override) when non-empty,
+/// 1. `override_url` (e.g. the `HM_APP_URL` env override) when non-empty,
 /// 2. heuristic mapping of `api.` → `app.` on the API host,
 /// 3. the API base itself (last-resort dev fallback for hosts like
 ///    `localhost` that have no `api.`/`app.` split).
@@ -139,6 +139,14 @@ impl Config {
 
     /// Testable core: build a `Config` from explicit file paths.
     ///
+    /// Layering, lowest to highest precedence: defaults -> user file ->
+    /// project file -> env.
+    ///
+    /// Env precedence (highest): both the `HM_`-prefixed split form
+    /// (`HM_CLOUD__ORG`, `HM_CLOUD__API_URL`) and the documented
+    /// `HM_ORG` / `HM_API_URL` are honored; the latter map onto
+    /// `cloud.org` / `cloud.api_url`.
+    ///
     /// # Errors
     ///
     /// Returns an error if figment extraction fails (malformed TOML, type mismatches).
@@ -152,7 +160,9 @@ impl Config {
             figment = figment.merge(Toml::file(p));
         }
 
-        figment = figment.merge(Env::prefixed("HM_").split("__"));
+        figment = figment
+            .merge(Env::prefixed("HM_").split("__"))
+            .merge(hm_alias_env());
 
         Ok(figment.extract()?)
     }
@@ -183,11 +193,45 @@ impl Config {
     }
 }
 
+/// Figment env provider mapping the friendly `HM_ORG` / `HM_API_URL`
+/// variables onto the nested `cloud` config keys.
+///
+/// The cloud settings docs and `hm`'s error messages tell users to
+/// `set HM_ORG=<slug>` / `HM_API_URL=<url>`, so those flat names must feed
+/// the config. This binds them to `cloud.org` / `cloud.api_url` alongside the
+/// generic `HM_`-prefixed split layer (`HM_CLOUD__ORG`, …).
+fn hm_alias_env() -> Env {
+    Env::raw()
+        .only(&["HM_ORG", "HM_API_URL"])
+        .map(|key| match key.as_str() {
+            "HM_ORG" => "cloud.org".into(),
+            "HM_API_URL" => "cloud.api_url".into(),
+            other => other.into(),
+        })
+        .split(".")
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
     use std::io::Write as _;
+    use std::sync::{Mutex, MutexGuard};
+
+    /// Serializes every test that resolves config through `load_*`.
+    ///
+    /// All `load_*` paths merge the process environment as their top layer, so
+    /// a test that sets `HM_*` (via `figment::Jail`, which mutates the
+    /// real process env for the duration of its closure) would otherwise leak
+    /// into a concurrently-running file-layering test. Holding this lock for
+    /// the whole body of any env-or-load test makes them mutually exclusive.
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn env_guard() -> MutexGuard<'static, ()> {
+        ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
 
     #[test]
     fn app_url_maps_prod_api_to_app() {
@@ -250,6 +294,7 @@ auto_watch = true
 
     #[test]
     fn deserialize_sparse_toml() {
+        let _g = env_guard();
         let toml_str = r#"
 [cloud]
 org = "sparse-co"
@@ -266,6 +311,7 @@ org = "sparse-co"
 
     #[test]
     fn deserialize_empty_toml() {
+        let _g = env_guard();
         let mut f = tempfile::NamedTempFile::new().unwrap();
         f.write_all(b"").unwrap();
 
@@ -278,6 +324,7 @@ org = "sparse-co"
 
     #[test]
     fn figment_project_overrides_user() {
+        let _g = env_guard();
         let user_toml = r#"
 [cloud]
 org = "user-org"
@@ -313,6 +360,7 @@ org = "project-org"
 
     #[test]
     fn backend_defaults_docker_and_parses_and_layers() {
+        let _g = env_guard();
         // default
         assert_eq!(Config::default().backend, Backend::Docker);
 
@@ -334,6 +382,7 @@ org = "project-org"
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn save_and_reload_roundtrip() {
+        let _g = env_guard();
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("config.toml");
         let cfg = Config {
@@ -352,7 +401,46 @@ org = "project-org"
     }
 
     #[test]
+    #[allow(clippy::result_large_err)] // figment::Error is the Jail closure's error type.
+    fn hm_env_overrides_cloud_keys() {
+        let _g = env_guard();
+        // `Jail` isolates env mutation from concurrently-running tests.
+        figment::Jail::expect_with(|jail| {
+            jail.set_env("HM_ORG", "env-org");
+            jail.set_env("HM_API_URL", "https://env.api");
+
+            let cfg = Config::load_from_paths(None, None).unwrap();
+            assert_eq!(cfg.cloud.org.as_deref(), Some("env-org"));
+            assert_eq!(cfg.cloud.api_url, "https://env.api");
+            Ok(())
+        });
+    }
+
+    #[test]
+    #[allow(clippy::result_large_err)] // figment::Error is the Jail closure's error type.
+    fn hm_env_overrides_user_file() {
+        let _g = env_guard();
+        // Env is the highest-precedence layer: it wins over a user file.
+        figment::Jail::expect_with(|jail| {
+            jail.set_env("HM_ORG", "env-org");
+
+            jail.create_file(
+                "config.toml",
+                "[cloud]\norg = \"file-org\"\napi_url = \"https://file.api\"\n",
+            )?;
+            let user = jail.directory().join("config.toml");
+
+            let cfg = Config::load_from_paths(Some(&user), None).unwrap();
+            assert_eq!(cfg.cloud.org.as_deref(), Some("env-org"));
+            // Unset env keys still come from the file.
+            assert_eq!(cfg.cloud.api_url, "https://file.api");
+            Ok(())
+        });
+    }
+
+    #[test]
     fn figment_missing_files_still_resolve() {
+        let _g = env_guard();
         let nonexistent_user = Path::new("/tmp/harmont-test-nonexistent-user/config.toml");
         let nonexistent_project = Path::new("/tmp/harmont-test-nonexistent-project/config.toml");
 

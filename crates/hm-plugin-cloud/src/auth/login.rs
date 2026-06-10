@@ -121,8 +121,8 @@ async fn login_paste(
     tracing::info!("Open this URL in your browser, then paste the code:\n  {auth_url}");
     let _ = webbrowser::open(&auth_url);
 
-    // Tests inject the code via `HARMONT_LOGIN_CODE` to avoid a TTY.
-    let code = if let Some(c) = env.get("HARMONT_LOGIN_CODE") {
+    // Tests inject the code via `HM_LOGIN_CODE` to avoid a TTY.
+    let code = if let Some(c) = env.get("HM_LOGIN_CODE") {
         c.clone()
     } else {
         dialoguer::Input::<String>::new()
@@ -140,9 +140,9 @@ async fn login_paste(
 /// Derive the SPA (app) base URL from the API base.
 ///
 /// Thin wrapper over the shared [`hm_config::app_url`] helper, sourcing the
-/// override from the `HARMONT_APP_URL` env var.
+/// override from the `HM_APP_URL` env var.
 fn app_url(api: &str, env: &BTreeMap<String, String>) -> String {
-    hm_config::app_url(api, env.get("HARMONT_APP_URL").map(String::as_str))
+    hm_config::app_url(api, env.get("HM_APP_URL").map(String::as_str))
 }
 
 /// A URL-safe random nonce for the loopback handoff.
@@ -177,7 +177,7 @@ mod tests {
         assert_eq!(
             app_url(
                 "https://api.harmont.dev",
-                &env(&[("HARMONT_APP_URL", "http://localhost:5173/")])
+                &env(&[("HM_APP_URL", "http://localhost:5173/")])
             ),
             "http://localhost:5173"
         );

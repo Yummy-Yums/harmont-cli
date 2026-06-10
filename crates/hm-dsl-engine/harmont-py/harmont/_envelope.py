@@ -68,7 +68,7 @@ def dump_registry_json(
     """Emit the schema_version=1 envelope JSON.
 
     Defaults mirror ``pipeline_to_json``:
-      ``pipeline_org`` <- ``env["HARMONT_PIPELINE_ORG"]`` or ``"default"``
+      ``pipeline_org`` <- ``env["HM_PIPELINE_ORG"]`` or ``"default"``
       ``now``          <- ``int(time.time())``
       ``base_path``    <- ``Path.cwd()`` (resolves ``on_change`` cache paths)
       ``env``          <- ``os.environ``
@@ -81,11 +81,7 @@ def dump_registry_json(
     """
     clear_target_memo()
     env_map: Mapping[str, str] = env if env is not None else os.environ
-    org = (
-        pipeline_org
-        if pipeline_org is not None
-        else env_map.get("HARMONT_PIPELINE_ORG", "default")
-    )
+    org = pipeline_org if pipeline_org is not None else env_map.get("HM_PIPELINE_ORG", "default")
     render_now = now if now is not None else int(time.time())
     bp = base_path if base_path is not None else Path.cwd()
     return json.dumps(
