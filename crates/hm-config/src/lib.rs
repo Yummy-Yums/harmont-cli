@@ -15,6 +15,26 @@ pub mod creds;
 
 pub const DEFAULT_API_URL: &str = "https://api.harmont.dev";
 
+/// Execution backend for `hm run`.
+///
+/// Closed set parsed at the config boundary so invalid values are rejected at
+/// deserialize time instead of mis-dispatching later, and every consumer match
+/// is exhaustively checked by the compiler.
+///
+/// The `#[display(...)]` strings are the stable lowercase wire/CLI names and
+/// must match the `#[serde(rename_all = "lowercase")]` representation.
+#[derive(
+    Debug, Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, derive_more::Display,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum Backend {
+    #[default]
+    #[display("docker")]
+    Docker,
+    #[display("cloud")]
+    Cloud,
+}
+
 /// Derive the SPA (dashboard) base URL from the API base.
 ///
 /// The CLI talks to `api.harmont.dev`, but a human clicks through to the
@@ -42,12 +62,6 @@ pub fn app_url(api: &str, override_url: Option<&str>) -> String {
         return format!("http://app.{rest}");
     }
     api.to_string()
-}
-
-/// Default execution backend for `hm run` when no `--backend`/`--cloud` flag
-/// is given.
-fn default_backend() -> String {
-    "docker".to_owned()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,25 +96,15 @@ impl Default for Preferences {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct Config {
-    #[serde(default = "default_backend")]
-    pub backend: String,
+    #[serde(default)]
+    pub backend: Backend,
     #[serde(default)]
     pub cloud: CloudConfig,
     #[serde(default)]
     pub preferences: Preferences,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            backend: default_backend(),
-            cloud: CloudConfig::default(),
-            preferences: Preferences::default(),
-        }
-    }
 }
 
 impl Config {
@@ -219,7 +223,7 @@ mod tests {
     #[test]
     fn default_config_values() {
         let cfg = Config::default();
-        assert_eq!(cfg.backend, "docker");
+        assert_eq!(cfg.backend, Backend::Docker);
         assert_eq!(cfg.cloud.api_url, DEFAULT_API_URL);
         assert!(cfg.cloud.org.is_none());
         assert_eq!(cfg.preferences.format, "human");
@@ -302,9 +306,15 @@ org = "project-org"
     }
 
     #[test]
+    fn backend_display_matches_wire_strings() {
+        assert_eq!(Backend::Docker.to_string(), "docker");
+        assert_eq!(Backend::Cloud.to_string(), "cloud");
+    }
+
+    #[test]
     fn backend_defaults_docker_and_parses_and_layers() {
         // default
-        assert_eq!(Config::default().backend, "docker");
+        assert_eq!(Config::default().backend, Backend::Docker);
 
         // user file sets cloud; project file sets docker -> project wins.
         let mut user_file = tempfile::NamedTempFile::new().unwrap();
@@ -315,11 +325,11 @@ org = "project-org"
 
         let cfg =
             Config::load_from_paths(Some(user_file.path()), Some(project_file.path())).unwrap();
-        assert_eq!(cfg.backend, "docker");
+        assert_eq!(cfg.backend, Backend::Docker);
 
         // user file alone parses "cloud".
         let cfg_user = Config::load_from_paths(Some(user_file.path()), None).unwrap();
-        assert_eq!(cfg_user.backend, "cloud");
+        assert_eq!(cfg_user.backend, Backend::Cloud);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
