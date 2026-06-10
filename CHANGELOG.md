@@ -2,8 +2,11 @@
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-06-10
+
 ### Changed
 
+- **Breaking:** **CLI:** Rename all `HARMONT_*` environment variables to `HM_*` (e.g. `HM_API_TOKEN`, `HM_API_URL`, `HM_ORG`), and drop legacy `~/.harmont` config/credential migration and the `.harmont/` project-directory fallback ([#133][pr133])
 - **Breaking:** **CLI:** Rename pipeline directory from `.harmont/` to `.hm/` and adopt hierarchical TOML config (user -> project -> env layering) ([#73][pr73])
 - **Breaking:** **DSL:** Replace separate `hm.npm()` and `hm.bun()` toolchain factories with unified `hm.js.project()` in both TypeScript and Python DSLs, accepting `runtime` (node/bun/deno) and `pm` (npm/pnpm/yarn-classic/yarn-berry/bun) axes ([#58][pr58], [#67][pr67]) (versecafe)
 - **Breaking:** **DSL:** Change `pipeline()` to accept an array of steps instead of variadic arguments in both Python and TypeScript DSLs ([#64][pr64])
@@ -15,6 +18,10 @@
 
 ### Added
 
+- **CLI:** Run a local worktree in the cloud with live build logs via `hm run --cloud` ([#49][pr49])
+- **CLI:** Add `-k`/`--keep-going` to `hm run` to keep independent branches running after a step fails ([#102][pr102])
+- **CLI:** Support TypeScript-only repositories in `hm pipelines` discovery ([#128][pr128])
+- **CLI:** Offer to link an organization during the `hm init` wizard ([#110][pr110])
 - **Breaking:** **DSL:** Add step-level and pipeline-level timeout support via `hm.timeout(duration, step)` wrapper and pipeline `timeout_seconds` field, replacing the old `timeoutSeconds` step option ([#76][pr76])
 - **DSL:** Add Deno runtime and Yarn (classic + berry) package manager support to the JS/TS toolchain in both DSLs ([#58][pr58], [#67][pr67]) (versecafe)
 - **DSL:** Add Elixir/OTP toolchain (`hm.ex`) with Mix project support, dependency caching, and example projects for both DSLs ([#55][pr55])
@@ -57,5 +64,10 @@
 [pr76]: https://github.com/harmont-dev/harmont-cli/pull/76
 [pr77]: https://github.com/harmont-dev/harmont-cli/pull/77
 [pr78]: https://github.com/harmont-dev/harmont-cli/pull/78
+[pr49]: https://github.com/harmont-dev/harmont-cli/pull/49
+[pr102]: https://github.com/harmont-dev/harmont-cli/pull/102
+[pr110]: https://github.com/harmont-dev/harmont-cli/pull/110
+[pr128]: https://github.com/harmont-dev/harmont-cli/pull/128
+[pr133]: https://github.com/harmont-dev/harmont-cli/pull/133
 [c089cee0]: https://github.com/harmont-dev/harmont-cli/commit/089cee0
 [c1bf727e]: https://github.com/harmont-dev/harmont-cli/commit/1bf727e
