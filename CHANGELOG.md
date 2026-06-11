@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-06-11
+
+### Changed
+
+- **CLI:** Cleaned up error messages: removed the dead `harmont.dev/docs/errors/<code>` documentation links (all 404) and dropped the misleading "check that the Docker daemon is running" hint from cloud backend errors. ([#140][pr140])
+- **CLI:** A cloud run from a worktree with no `origin` remote now fails with a clear error explaining that a git remote is required, instead of a confusing 404. ([#139][pr139])
+- **DSL:** Building the DSL engine now fails with a clear error when esbuild is missing instead of silently warning, so the build no longer succeeds without the JS bundle. ([#136][pr136]) (Power)
+
+### Added
+
+- **CLI:** `hm run --cloud` now registers or creates the pipeline automatically on its first run, so a project works straight after `hm init` with no manual dashboard setup. It auto-creates the pipeline on a `pipeline_not_found`, works without a git remote by prompting for the repo name (defaulting to the directory, auto-registering in CI/non-TTY), and persists `[cloud] pipeline = "<slug>"` to `.hm/config.toml` so later runs submit by slug with no prompt. ([#140][pr140])
+
+### Fixed
+
+- **CLI:** `hm run --backend cloud` now resolves the target pipeline by repository identity (owner/repo from the git remote) instead of the bare DSL slug, fixing spurious `pipeline_not_found` 404s when the org's pipeline is stored under a namespaced global slug. ([#139][pr139])
+- **SDK:** Fix `@harmont/hm` npm publishing by upgrading to npm ≥ 11.5.1 in the release workflow, so OIDC trusted publishing authenticates instead of failing with a masked 404. ([#138][pr138])
+
 ## [0.0.6] - 2026-06-10
 
 ### Changed
@@ -69,5 +86,9 @@
 [pr110]: https://github.com/harmont-dev/harmont-cli/pull/110
 [pr128]: https://github.com/harmont-dev/harmont-cli/pull/128
 [pr133]: https://github.com/harmont-dev/harmont-cli/pull/133
+[pr140]: https://github.com/harmont-dev/harmont-cli/pull/140
+[pr139]: https://github.com/harmont-dev/harmont-cli/pull/139
+[pr138]: https://github.com/harmont-dev/harmont-cli/pull/138
+[pr136]: https://github.com/harmont-dev/harmont-cli/pull/136
 [c089cee0]: https://github.com/harmont-dev/harmont-cli/commit/089cee0
 [c1bf727e]: https://github.com/harmont-dev/harmont-cli/commit/1bf727e
