@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [0.0.8] - 2026-06-11
+
+### Changed
+
+- **Breaking:** **DSL:** Rust `build`/`test` now emit `--locked` by default, `clippy` uses `--all-targets` instead of `--tests`, and `fmt` defaults to `--all --check` (pass `locked=False` or adjust flags to restore old behavior) ([#143][pr143])
+- **Breaking:** **DSL:** Imageless root steps now default to `ubuntu:24.04` instead of `alpine:latest`, fixing `apt-get: not found` errors when using built-in toolchains without an explicit image ([#144][pr144])
+
+### Added
+
+- **DSL:** Rust toolchain gains `ci()` (zero-config test+clippy+fmt DAG), `test(nextest=True)`, `doctest()`, `build()`, `doc()`, and `feature_powerset()` (cargo-hack) across both Python and TypeScript DSLs ([#143][pr143])
+- **DSL:** All Rust cargo actions accept ergonomic keyword options: `packages`, `exclude`, `features`, `all_features`, `no_default_features`, `target`, `release`/`profile`, `locked`, `workspace`, and a `flags` escape hatch ([#143][pr143])
+
+### Removed
+
+- **Breaking:** **DSL:** Remove `default_image` (Python) / `defaultImage` (TypeScript) parameter from `pipeline()`; set a per-step `image=` instead ([#144][pr144])
+
+### Fixed
+
+- **DSL:** Shell-quote all user-supplied cargo values (`packages`, `features`, `target`, etc.) to prevent shell injection ([#143][pr143])
+
 ## [0.0.7] - 2026-06-11
 
 ### Changed
@@ -92,3 +112,5 @@
 [pr136]: https://github.com/harmont-dev/harmont-cli/pull/136
 [c089cee0]: https://github.com/harmont-dev/harmont-cli/commit/089cee0
 [c1bf727e]: https://github.com/harmont-dev/harmont-cli/commit/1bf727e
+[pr143]: https://github.com/harmont-dev/harmont-cli/pull/143
+[pr144]: https://github.com/harmont-dev/harmont-cli/pull/144
