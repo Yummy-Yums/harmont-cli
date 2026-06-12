@@ -76,7 +76,7 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": ". $HOME/.cargo/env && cd . && cargo build",
+          "cmd": ". $HOME/.cargo/env && cd . && cargo build --locked",
           "key": "build",
           "label": ":rust: build"
         }
@@ -88,7 +88,7 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": ". $HOME/.cargo/env && cd . && cargo test",
+          "cmd": ". $HOME/.cargo/env && cd . && cargo test --locked",
           "key": "test",
           "label": ":rust: test"
         }
@@ -100,7 +100,7 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": ". $HOME/.cargo/env && cd . && cargo clippy --all-targets -- -D warnings",
+          "cmd": ". $HOME/.cargo/env && cd . && cargo clippy --all-targets --locked -- -D warnings",
           "key": "clippy",
           "label": ":rust: clippy"
         }
@@ -112,7 +112,7 @@
           "TERM": "dumb"
         },
         "step": {
-          "cmd": ". $HOME/.cargo/env && cd . && cargo fmt --check",
+          "cmd": ". $HOME/.cargo/env && cd . && cargo fmt --all --check",
           "key": "fmt",
           "label": ":rust: fmt"
         }
@@ -121,10 +121,11 @@
         "env": {
           "CI": "true",
           "DEBIAN_FRONTEND": "noninteractive",
+          "RUSTDOCFLAGS": "-D warnings",
           "TERM": "dumb"
         },
         "step": {
-          "cmd": ". $HOME/.cargo/env && cd . && cargo doc --no-deps",
+          "cmd": ". $HOME/.cargo/env && cd . && cargo doc --no-deps --locked",
           "key": "doc",
           "label": ":rust: doc"
         }

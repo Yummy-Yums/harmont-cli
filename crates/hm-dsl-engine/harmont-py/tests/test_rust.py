@@ -158,6 +158,120 @@ class TestRustToolchain:
         assert len([c for c in cmds if "sh.rustup.rs" in c]) == 1
         assert len([c for c in cmds if "apt-get install" in c]) == 1
 
+    def test_build_locked_by_default(self):
+        tc = hm.rust.toolchain(path=".")
+        assert tc.build().cmd.endswith("cargo build --locked")
+
+    def test_build_unlocked(self):
+        tc = hm.rust.toolchain(path=".")
+        assert tc.build(locked=False).cmd.endswith("cargo build")
+
+    def test_build_features(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.build(features=("a", "b"), release=True)
+        assert "cargo build --features a,b --release --locked" in s.cmd
+
+    def test_build_packages(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.build(packages=("core", "cli"))
+        assert "cargo build -p core -p cli --locked" in s.cmd
+
+    def test_test_all_features(self):
+        tc = hm.rust.toolchain(path=".")
+        assert "cargo test --all-features --locked" in tc.test(all_features=True).cmd
+
+    def test_test_nextest_switches_runner(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.test(nextest=True, workspace=True)
+        assert "cargo nextest run --workspace --locked" in s.cmd
+
+    def test_doctest_appends_doc(self):
+        tc = hm.rust.toolchain(path=".")
+        assert tc.doctest(workspace=True).cmd.endswith("cargo test --workspace --locked --doc")
+
+    def test_doctest_default_label(self):
+        tc = hm.rust.toolchain(path=".")
+        assert tc.doctest().label == ":rust: doctest"
+
+    def test_clippy_all_targets_locked_deny(self):
+        tc = hm.rust.toolchain(path=".")
+        assert "cargo clippy --all-targets --locked -- -D warnings" in tc.clippy().cmd
+
+    def test_clippy_extra_lints(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.clippy(extra_lints=("-W clippy::pedantic",))
+        assert "-- -D warnings -W clippy::pedantic" in s.cmd
+
+    def test_clippy_no_deny(self):
+        tc = hm.rust.toolchain(path=".")
+        assert " -- " not in tc.clippy(deny_warnings=False).cmd
+
+    def test_fmt_all_check_default(self):
+        tc = hm.rust.toolchain(path=".")
+        assert tc.fmt().cmd.endswith("cargo fmt --all --check")
+
+    def test_doc_sets_rustdocflags_env(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.doc()
+        assert "cargo doc --no-deps --locked" in s.cmd
+        assert s.env == {"RUSTDOCFLAGS": "-D warnings"}
+
+    def test_doc_respects_user_rustdocflags(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.doc(env={"RUSTDOCFLAGS": "-D rustdoc::all"})
+        assert s.env == {"RUSTDOCFLAGS": "-D rustdoc::all"}
+
+    def test_doc_no_deny(self):
+        tc = hm.rust.toolchain(path=".")
+        assert tc.doc(deny_warnings=False).env is None
+
+    def test_test_all_targets(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.test(all_targets=True, workspace=True)
+        assert "cargo test --workspace --all-targets --locked" in s.cmd
+
+    def test_doctest_target(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.doctest(target="wasm32-unknown-unknown")
+        assert s.cmd.endswith("cargo test --target wasm32-unknown-unknown --locked --doc")
+
+    def test_clippy_extra_lints_without_deny(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.clippy(deny_warnings=False, extra_lints=("-W clippy::pedantic",))
+        assert s.cmd.rstrip().endswith("-- -W clippy::pedantic")
+        assert "-D warnings" not in s.cmd
+
+    def test_feature_powerset_default(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.feature_powerset()
+        assert "cargo hack check --feature-powerset --depth 2 --no-dev-deps" in s.cmd
+
+    def test_feature_powerset_installs_cargo_hack(self):
+        tc = hm.rust.toolchain(path="cli")
+        s = tc.feature_powerset()
+        p = hm.pipeline([s])
+        cmds = _cmds(p)
+        assert any("cargo install cargo-hack --locked" in c for c in cmds)
+
+    def test_feature_powerset_each_feature(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.feature_powerset(each_feature=True)
+        assert "--each-feature" in s.cmd
+        assert "--feature-powerset" not in s.cmd
+
+    def test_feature_powerset_skip_and_keep_going(self):
+        tc = hm.rust.toolchain(path=".")
+        s = tc.feature_powerset(subcommand="test", skip=("__tls", "http3"), keep_going=True)
+        expected = (
+            "cargo hack test --feature-powerset --depth 2"
+            " --no-dev-deps --skip __tls,http3 --keep-going"
+        )
+        assert expected in s.cmd
+
+    def test_feature_powerset_label(self):
+        tc = hm.rust.toolchain(path=".")
+        assert tc.feature_powerset().label == ":rust: feature-powerset"
+
 
 # --- RustProject (hm.rust.project) ---
 
@@ -196,20 +310,24 @@ class TestRustProject:
 
     def test_clippy_command(self):
         proj = hm.rust.project(path="cli")
-        assert "cargo clippy --workspace --tests --locked -- -D warnings" in proj.clippy().cmd
+        assert (
+            "cargo clippy --workspace --all-targets --locked -- -D warnings" in proj.clippy().cmd
+        )
 
     def test_clippy_flags(self):
         proj = hm.rust.project(path=".")
         step = proj.clippy(flags=("--fix",))
-        assert "cargo clippy --workspace --tests --locked --fix -- -D warnings" in step.cmd
+        assert "cargo clippy --workspace --all-targets --locked --fix -- -D warnings" in step.cmd
 
     def test_fmt_command(self):
         proj = hm.rust.project(path="cli")
-        assert "cargo fmt --check" in proj.fmt().cmd
+        assert proj.fmt().cmd.endswith("cargo fmt --all --check")
 
     def test_fmt_flags(self):
         proj = hm.rust.project(path=".")
-        assert "cargo fmt --check --all" in proj.fmt(flags=("--all",)).cmd
+        assert (
+            "cargo fmt --all --check --config-path x" in proj.fmt(flags=("--config-path", "x")).cmd
+        )
 
     def test_test_chains_off_warmup(self):
         proj = hm.rust.project(path=".")
@@ -250,7 +368,7 @@ class TestRustProject:
         assert any("cargo build --workspace --tests --locked" in c for c in cmds)
         assert any("cargo test --workspace --locked" in c for c in cmds)
         assert any("cargo clippy" in c for c in cmds)
-        assert any("cargo fmt --check" in c for c in cmds)
+        assert any("cargo fmt --all --check" in c for c in cmds)
         assert len([c for c in cmds if "sh.rustup.rs" in c]) == 1
         assert len([c for c in cmds if "apt-get install" in c]) == 1
 
@@ -259,3 +377,82 @@ class TestRustProject:
         p = hm.pipeline([proj.test()])
         rustup = _step_by_substring(p, "sh.rustup.rs")
         assert "--default-toolchain 1.81.0" in rustup["cmd"]
+
+    def test_test_packages(self):
+        proj = hm.rust.project(path=".")
+        step = proj.test(packages=("core",))
+        assert "cargo test -p core --locked" in step.cmd
+
+    def test_test_nextest(self):
+        proj = hm.rust.project(path=".")
+        assert "cargo nextest run --workspace --locked" in proj.test(nextest=True).cmd
+
+    def test_build_method_exists(self):
+        proj = hm.rust.project(path=".")
+        assert "cargo build --workspace --locked" in proj.build().cmd
+        assert proj.build().parent is proj.warmup
+
+    def test_doctest_method(self):
+        proj = hm.rust.project(path=".")
+        assert proj.doctest().cmd.endswith("cargo test --workspace --locked --doc")
+        assert proj.doctest().label == ":rust: doctest"
+
+    def test_clippy_packages(self):
+        proj = hm.rust.project(path=".")
+        step = proj.clippy(packages=("core",))
+        assert "cargo clippy -p core --all-targets --locked -- -D warnings" in step.cmd
+
+    def test_doc_method(self):
+        proj = hm.rust.project(path=".")
+        s = proj.doc()
+        assert "cargo doc --no-deps --workspace --locked" in s.cmd
+        assert s.env == {"RUSTDOCFLAGS": "-D warnings"}
+
+    def test_ci_returns_test_clippy_fmt(self):
+        proj = hm.rust.project(path=".")
+        steps = proj.ci()
+        labels = [s.label for s in steps]
+        assert labels == [":rust: test", ":rust: clippy", ":rust: fmt"]
+
+    def test_ci_nextest_adds_doctest(self):
+        proj = hm.rust.project(path=".")
+        steps = proj.ci(nextest=True)
+        labels = [s.label for s in steps]
+        assert labels == [":rust: test", ":rust: doctest", ":rust: clippy", ":rust: fmt"]
+        assert any("cargo nextest run" in s.cmd for s in steps)
+        assert any(s.cmd.endswith("--doc") for s in steps)
+
+    def test_ci_doc_flag_adds_doc(self):
+        proj = hm.rust.project(path=".")
+        labels = [s.label for s in proj.ci(doc=True)]
+        assert ":rust: doc" in labels
+
+    def test_doc_exclude(self):
+        proj = hm.rust.project(path=".")
+        s = proj.doc(exclude=("integration",))
+        assert "cargo doc --no-deps --workspace --exclude integration --locked" in s.cmd
+
+    def test_ci_in_pipeline(self):
+        proj = hm.rust.project(path="cli")
+        p = hm.pipeline(list(proj.ci()))
+        cmds = _cmds(p)
+        assert len([c for c in cmds if "sh.rustup.rs" in c]) == 1
+
+    def test_feature_powerset_delegates(self):
+        proj = hm.rust.project(path=".")
+        s = proj.feature_powerset(subcommand="clippy")
+        assert "cargo hack clippy --feature-powerset --depth 2 --no-dev-deps" in s.cmd
+
+
+def test_no_shell_injection_via_packages():
+    tc = hm.rust.toolchain(path=".")
+    s = tc.build(packages=("a; touch /tmp/pwned",))
+    # The malicious value is single-quoted, so the shell sees one -p argument.
+    assert "-p 'a; touch /tmp/pwned'" in s.cmd
+    assert "; touch /tmp/pwned --locked" not in s.cmd
+
+
+def test_no_shell_injection_via_target():
+    tc = hm.rust.toolchain(path=".")
+    s = tc.build(target="x; rm -rf /")
+    assert "--target 'x; rm -rf /'" in s.cmd
